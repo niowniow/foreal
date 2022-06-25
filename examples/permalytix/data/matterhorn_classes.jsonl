@@ -1,0 +1,1 @@
+{"earthquake": 0,  "rockfall": 1, "noise": 2, "misc": 3, "rain": 4, "mountaineer":5, "hail": 6, "wind": 7, "helicopter":8, "unknown": 9, "bad_weather": 10, "low_visibility": 11, "lensflare": 12}
