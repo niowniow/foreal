@@ -36,7 +36,7 @@ jobs:
         path: docs/_site
 
   docs-publish:
-    needs: [ "test", "docs" ]
+    needs: [ "docs" ]
     runs-on: ubuntu-latest
     steps:
 
