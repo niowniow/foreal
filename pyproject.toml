@@ -27,6 +27,7 @@ holoviews = "^1.14.9"
 compress-pickle = "^2.1.0"
 numpy = "1.22"
 scikit-learn = "^1.1.2"
+numba = "^0.56.2"
 
 [tool.poetry.dev-dependencies]
 pre-commit = "^2.13.0"

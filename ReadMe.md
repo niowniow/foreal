@@ -23,7 +23,6 @@ Download and install [miniconda for python](https://docs.conda.io/en/latest/mini
 conda create -n foreal -y python=3.8
 conda activate foreal
 pip install poetry
-pip install numba
 poetry install
 ```
 
