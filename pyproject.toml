@@ -26,6 +26,7 @@ dash-cytoscape = "^0.3.0"
 holoviews = "^1.14.9"
 compress-pickle = "^2.1.0"
 numpy = "1.22"
+scikit-learn = "^1.1.2"
 
 [tool.poetry.dev-dependencies]
 pre-commit = "^2.13.0"
