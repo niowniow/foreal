@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Potential Use Cases - foReal Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Potential Use Cases";
+        var mkdocs_page_input_path = "use_cases.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> foReal Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Welcome to the foReal documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../get_started/">Getting Started</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../concept/">Concepts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../examples/">Examples</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api/">API Documentation</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">foReal Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+      <li>Potential Use Cases</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/niowniow/foreal/blob/main/docs/content/use_cases.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="potential-use-cases">Potential Use Cases</h1>
+<p>There are several advantages using a declarative data access model:</p>
+<ul>
+<li><strong>Flexibility</strong> Selecting the required data segments from a dataset is facilitated, since complex data loading and processing is abstracted.</li>
+<li><strong>Inter-dependencies</strong> If there is a dependency of a successive task on its predecessors the declarative paradigm gives the successive task the option to declare these dependencies. Examples are the dependency of spectrogram input to its parameters or a machine learning model which requires a specific set of parametrization for its inputs.</li>
+<li><strong>Data augmentation</strong> Declarative data access can be used for controlled randomization. Each parameter can be defined and stored on a per-sample basis, which allows perfect replay and per-sample optimization of data augmentation parameters.</li>
+<li><strong>Dynamic sample merging</strong> Deep learning for audio applications benefits from superposition of multiple audio segments during training. For example merging two segments of the same label create a new, unseen segment while retaining the correct label. Declarative data access facilitates the process because a second segment of the same label can be explicitly requested during runtime.</li>
+<li><strong>Dynamic zoom</strong> Signal processing algorithms usually scale with input size, meaning if we process an image, the runtime is dependant on the image dimensions. In Chapter~\ref{ch:IdentifyingInfluences} we avoid large processing costs by downscaling the images before applying an image classifier. However, small features are indistinguishable in low-resolution images. Zooming in on details could reveal more information but only if zooming results in a higher resolution segment of the image. With declarative data access we could make the resolution dependent on the zoom level - keeping the image dimension constant while the resolution scales.</li>
+<li><strong>Access to expanding datasets</strong> Continuous data acquisition requires certain computations to be run every time new data arrives. Declarative data access avoids these time-triggered computations because when the data is accessed the computations will be run automatically.</li>
+<li><strong>Relabeling</strong> During relabeling new annotations are added to the dataset or the existing annotations of a dataset are modified. If the declarative approach (for example requesting all annotations of a time segment) is used in combination with the data independence paradigm (annotations are abstract bounding boxes), the change in the annotation set is immediately reflected in any use case of the dataset (machine learning, visualization), which makes the different use cases consistent.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/niowniow/foreal" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+    
+  </span>
+</div>
+    <script>var base_url = '..';</script>
+    <script src="../js/theme_extra.js" defer></script>
+    <script src="../js/theme.js" defer></script>
+      <script src="../javascripts/mathjax.js" defer></script>
+      <script src="https://polyfill.io/v3/polyfill.min.js?features=es6" defer></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+      <script src="../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

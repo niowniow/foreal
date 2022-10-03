@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="description" content="None" />
+      <link rel="shortcut icon" href="img/favicon.ico" />
+    <title>foReal Documentation</title>
+    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Welcome to the foReal documentation";
+        var mkdocs_page_input_path = "index.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="." class="icon icon-home"> foReal Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="./search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href=".">Welcome to the foReal documentation</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#why-foreal">Why foReal?</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#documentation">Documentation</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#caveats">Caveats</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="get_started/">Getting Started</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="concept/">Concepts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="examples/">Examples</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="api/">API Documentation</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href=".">foReal Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+      <li>Welcome to the foReal documentation</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/niowniow/foreal/blob/main/docs/content/index.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="welcome-to-the-foreal-documentation">Welcome to the foReal documentation</h1>
+<p>foReal offers data processing for real-world sensor deployments. A multi-modal, multi-application data processing and analysis framework designed for data exploration.</p>
+<p><strong>NOTE: This framework is experimental and still under development. It's by no means production-ready and might break anytime!</strong></p>
+<h2 id="why-foreal">Why foReal?</h2>
+<p>Open environmental data can be used to tackle environmental challenges. However, such data is often incomprehensible since it is inherently complex and thus limited to a tech-savvy group with environmental background. Improved accessibility can lead to better collaboration between experts and decision-makers, involvement of the public and machine intelligence and consequently a society-wide response to pending challenges.</p>
+<p>foReal follows a declarative paradigm: To bridge expertise domains it is more relevant to define what is needed (declarative), instead of how it is implemented (imperative). To accomplish a declarative workflow, foReal focuses on</p>
+<ul>
+<li>Configurability: Define your analysis workflow using a task graph which can be dynamically reconfigured by you or your project partners.</li>
+<li>Accessbility: Integrated web service to show, share and debug your analaysis.</li>
+<li>Reproducability: Define your task graph in a python file and load it by different apps to perform the same computations.</li>
+</ul>
+<h2 id="installation">Installation</h2>
+<p>Download and install <a href="https://docs.conda.io/en/latest/miniconda.html">miniconda for python</a></p>
+<pre><code>conda create -n foreal -y python=3.8
+conda activate foreal
+pip install poetry
+pip install numba
+poetry install
+</code></pre>
+<h2 id="configuration">Configuration</h2>
+<p>Some foReal function depend on specific directories or require specific access keys. These keys are stored in a configuration file. The location of the file is OS-dependant. An empty file can be created with (its location will be printed):</p>
+<pre><code>python -c &quot;import foreal; foreal.create_user_config_file()&quot;
+</code></pre>
+<p>You can open the file and insert configuration parameters in <code>yaml</code> format e.g.</p>
+<pre><code>user_dir: /path/to/usr/dir
+arclink: {&quot;user&quot;:&quot;theusername&quot;, &quot;password&quot;:&quot;topsecretpw&quot;, &quot;url&quot;:&quot;http://arclink.server.address&quot;}
+</code></pre>
+<h2 id="documentation">Documentation</h2>
+<p>The documentation is created with Markdown and pydoc-markdown. From within the <code>docs</code> folder, the documentation can compiled by invoking <code>novella</code> or it can be served using <code>novella --serve</code>.</p>
+<h2 id="caveats">Caveats</h2>
+<ul>
+<li>This public release was copied from an internal version of the framework to support open-sourcing our research projects. Not all parts (certain features, tests, benchmarks, ...) have been transfered yet.</li>
+<li>Currently some functions are designed to work with time-series data only, meaning the data must have a <code>time</code> coordinate. This will be resolved in the future.</li>
+</ul>
+<!-- Links -->
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="get_started/" class="btn btn-neutral float-right" title="Getting Started">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/niowniow/foreal" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+    
+      <span><a href="get_started/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '.';</script>
+    <script src="js/theme_extra.js" defer></script>
+    <script src="js/theme.js" defer></script>
+      <script src="javascripts/mathjax.js" defer></script>
+      <script src="https://polyfill.io/v3/polyfill.min.js?features=es6" defer></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+      <script src="search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>
+
+<!--
+MkDocs version : 1.4.0
+Build Date UTC : 2022-10-03 12:37:37.041425+00:00
+-->

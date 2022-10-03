@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Concepts - foReal Documentation</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Concepts";
+        var mkdocs_page_input_path = "concept.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> foReal Documentation
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Welcome to the foReal documentation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../get_started/">Getting Started</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="./">Concepts</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#transparent-separation-of-concerns">Transparent separation of concerns</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#declarative-data-access-and-data-processing">Declarative Data Access and Data Processing</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#datasets">Datasets</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#data-independence">Data Independence</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#data-cubes">Data Cubes</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#annotations">Annotations</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../examples/">Examples</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api/">API Documentation</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">foReal Documentation</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+      <li>Concepts</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/niowniow/foreal/blob/main/docs/content/concept.md" class="icon icon-github"> Edit on GitHub</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="concepts">Concepts</h1>
+<p>foReal follows a declarative paradigm: To bridge expertise domains it is more relevant to define what is needed (declarative), instead of how it is implemented (imperative). To accomplish a declarative workflow, foReal focuses on configurability, accessbility and reproducability.</p>
+<p>We focus on two major concepts: Transparent separation of concerns and declarative data access and processing</p>
+<h2 id="transparent-separation-of-concerns">Transparent separation of concerns</h2>
+<p>In environmental monitoring, a diverse set of tasks need to be performed such as experiment and system design, instrument development, deployment setup and maintenance, data collection and management, algorithm development, model definition and data analysis. These tasks require different expertise which can be found in different domains for example hardware domain (Develop, deploy and maintain wireless sensor network), software domain (efficient data storage, data transfer, data management), application domain (define application scenario, set up experiments, contribute expert knowledge, analyze data) and data domain (find adequate data analysis methods, automate data analysis). Some or all of these domains may be covered by one individual but usually a team is required to accomplish an experiment. </p>
+<p>On the software side, data generation, processing and analysis can be subdivided into multiple components each requiring specific expertise. However, errors in each component may have a strong negative impact on the overall analysis and combatting these errors requires again a very specific set of expertise. Unfortunately, certain types of errors don't necessarily reveal themselves during development of each component but in later stages when all components are combined. </p>
+<p>To address the challenge of a multi-disciplinary data analysis project, we define the following software requirements:</p>
+<ul>
+<li><strong>Separation of concerns</strong>: Abstraction of a system into <em>modules</em> which are each responsible for one specific subtask of the system. Each module can be worked on individually which allows to distribute the work to experts. Each module must receive and provide their data in a common, well-defined format. <em>Clear interfaces</em> are necessary to join modules to a functioning system.</li>
+<li><strong>Transparency</strong>: Each user or developer should be able to trace errors back to their origin in all modules of the system.</li>
+</ul>
+<p>Ideally, these requirements are reflected in the analysis workflow and software package. The following illustration highlights a data flow graph for a one environmental analysis example. Each node of the graph represents either a processing unit (light-purple) or a human-lead step (dark-cyan). A data access unit for each respective sensor should be designed to give access to the data and include meta information (for example about data availability, data validity or sensor peculiarities). This unit acts as a bridge translating raw or processed sensor data to a common data shape used for analysis. Next, the data processing is split into well-defined processing units, thus distinguishing functionality and implementation. Each processing unit processes the data and returns it in the common data shape. In the example, seismic, image and weather unit as well as annotations can be used to train a model, which can subsequently be used to create predictions for long-term analysis. Annotation errors can be mitigated by using the visualization tool for relabeling the annotation set. Additionally, the visualization tool can be used to perform analysis.</p>
+<p><img alt="task_graph" src="../assets/images/task_graph.svg" />
+<b>Data flow graph for an example data analysis. Software components are highlighted in light-purple, human-lead steps in dark-cyan. Data access units bridge sensor data and processing units. By providing the output in a common data shape, multiple units can be concatenated. The output of such concatenations can be combined into a dataset, which can be used for visualization or for developing a model. Finally, the human in the loop can perform analysis or relabeling. Such data flow graphs provide an easy to understand high-level view of a software solution.</b></p>
+<p>The advantage of a data flow graph described is that it can be implemented as a task graph, similar to filter graphs in signal processing, where each node transforms the incoming signal(s) and delivers them to the next node(s) in the graph. Task graphs are easy to understand and use even with little technical expertise. In our framework, graph computation is performed using <a href="https://www.dask.org">dask</a>, a library for parallel computing. The dask framework allows to schedule the graph's tasks in a single thread or parallelize the graph on one or many computers. Thus, we can adopt dask capability of scaling out (using more machines) if our analysis task or dataset grows. Dasks implements computation using a directed acyclic graph. Dask is based on a generic task scheduling and supports complex algorithms and as well as multi-dimensional arrays.</p>
+<h2 id="declarative-data-access-and-data-processing">Declarative Data Access and Data Processing</h2>
+<p>To bridge expertise domains it is more relevant to define <em>what</em> is needed (declarative), instead of <em>how</em> it is implemented (imperative). In the case of our motivational example, <em>what</em> is needed for analysis is the time-frequency representation of seismic data for a given time period. Ideally, <em>how</em> the complex data processing leading to a spectrogram is implemented could be abstracted away and hidden from the data user. To illustrate the complexity, generating a spectrogram would include the development of a program to determine which and how much waveform data is needed to produce a spectrogram of requested size. Then, the software would need to check if the waveform data is available, loading waveform data from disk and transforming it with an efficient implementation of a short-time fourier transformation. It is important to consider that the spectrogram computations uses a sliding window, thus its output dimension is depending on the sliding window parameters (window size and stride). If the waveform duration is not chosen according to these parameters, the spectrogram will not have the desired dimensions. </p>
+<p>Here, a combination of task graph and declarative approach can be beneficial. First, the task graph provides a generic framework for how a spectrogram is computed. Secondly, we could declare which time segment of a spectrogram is requested instead of declaring which time segment of waveform to transform into a spectrogram. A designated spectrogram unit would hide the complexity of choosing the correct waveform duration for the given spectrogram parameterization to generate the spectrogram of requested size.</p>
+<p>In foReal a declarative procedure is implemented with so called <em>requests</em>, exemplified. A request is a metadata information which contains parameter information for selected units in the task graph. These parameters can for example include, which time period to load, from which seismic station to load the data or which preprocessing parameters to use. Parameters declared in a request can be valid for all processing units in the graph (<em>global</em>), for a processing unit type (<em>types</em>) or one specific instance of a unit (<em>keys</em>). Moreover, it includes parameters which act on data, such as the <em>indexers</em> parameter, which contains information about which subset of the requested data segment is relevant.</p>
+<pre><code>{ 
+  &quot;indexers&quot;: { 
+    &quot;time&quot;: {   
+      &quot;start&quot;: &quot;2017-07-02T10:01:00&quot;, 
+      &quot;stop&quot;: &quot;2017-07-02T10:02:00&quot;},
+    &quot;frequency&quot;: { 
+      &quot;start&quot;: 0, 
+      &quot;stop&quot;: 20},
+    &quot;sensor&quot;: [&quot;MH36&quot;, &quot;MH38&quot;],
+    }, 
+  &quot;config&quot;:{
+    &quot;global&quot;:{
+      &quot;raw&quot;:False}
+    },
+    &quot;types&quot;:{
+      &quot;SeismicPortal&quot;:{&quot;sampling_rate&quot;:100}
+      },
+    &quot;keys&quot;:{
+      &quot;spectrogram_id&quot;:{&quot;stride&quot;:1024}
+    },
+}
+</code></pre>
+<p>The previous code snipped is an example of a request and its structure. Such a request can be defined by the data user or be the result of a processing unit's configuration function.</p>
+<ul>
+<li>L2 <code>indexers</code>: Define which data segment to return </li>
+<li>L3 <code>indexers.time</code>: Select a range on the time dimension </li>
+<li>L6 <code>indexers.frequency</code>: Select a range on the frequency dimension </li>
+<li>L9 <code>indexers.sensor</code>: Select two specific values on the sensor dimension</li>
+<li>L11 <code>config</code>: Define global, type-specific or unit-specific configuration. Any key except <code>global</code>, <code>types</code>, <code>keys</code> will be treated as <code>global</code></li>
+<li>L13 <code>config.global</code>: Affects every unit with this parameter </li>
+<li>L16 <code>config.types</code>: Affects all units of specified type (SeismicPortal) </li>
+<li>L19 <code>config.keys</code>: Affects the unit with the specified key (<code>spectrogram_id</code>)</li>
+</ul>
+<p>The following figure and code listing illustrates how a multi-modal data sample is computed using <em>foReal</em>. In the figure, a task graph is given which contains a path for computation of a seismic spectrogram and one path aggregating the rain intensity of the last hour. Most of the parameters of each processing unit are predefined during graph design and are not explicitly mentioned in the given requests. The request #1 is designed to extract one time segment from the task graph. It is propagated towards the <em>Seismic</em> and <em>Weather</em> data access units. Internally, the <em>Spectrogram</em> and <em>Rain Aggregation</em> unit update the request with a new start time and forward it. Additionally, the <em>Rain Aggregation</em> unit requests only the rain intensity subset, given that the <em>Weather</em> unit provides a set of different weather measurements (for example rain intensity, wind speed, ...).</p>
+<p><img alt="task_graph" src="../assets/images/configexample.svg" /></p>
+<pre><code>1 { &quot;indexers&quot;: { 
+1    &quot;time&quot;: { 
+1    &quot;start&quot;: &quot;2017-07-02T10:01:00&quot;, 
+1    &quot;stop&quot;: &quot;2017-07-02T10:02:00&quot;}}}
+2 { &quot;indexers&quot;: { 
+2    &quot;time&quot;: { 
+2    &quot;start&quot;: &quot;2017-07-02T10:00:55&quot;, 
+2    &quot;stop&quot;: &quot;2017-07-02T10:02:00&quot;}}}
+3 { &quot;indexers&quot;: { 
+3    &quot;time&quot;: { 
+3    &quot;start&quot;: &quot;2017-07-02T09:02:00&quot;, 
+3    &quot;stop&quot;: &quot;2017-07-02T10:02:00&quot;}}}
+</code></pre>
+<p>More generally, configuring a task graph using a request proceeds in two phases, a configuration phase and a computation phase. In the configuration phase, the respective request is propagated through the task graph from sink to source. Each unit receives the request from its successor (in direction towards the sink). Simply put, for every unit the following question must be answered: <em>"What does this unit need from the previous units to fulfill the given request?"</em>
+This means each unit extracts and verifies from the request the metadata relevant for it. It then adds, modifies or creates requirements it needs from its predecessors. Each unit can also indicate if it requires the updated request in the computation phase again. The updated request is then forwarded to the next unit until all sources of the graph are reached. If nothing is requested from previous units, all previous units (if any) can be removed from the task graph. 
+In the second phase, the graph is scheduled for computation, starting from the data access units to the sink units. Each unit receives multiple inputs, including data from the previous unit(s) and the request from the configuration phase. </p>
+<p>As explained before, processing the data can be a complex, error-prone task, especially if the data source is sensitive to errors. The declarative approach can potentially reduce these errors because it provides a clear interface to gather the relevant information. Using a declarative approach allows to disconnect conceptual errors (Is a spectrogram the right choice to analyse my data?) from implementation errors (Is enough waveform data loaded to get the spectrogram of required size?)</p>
+<h2 id="datasets">Datasets</h2>
+<p>In foReal a <strong>dataset</strong> is:</p>
+<p><em>A task graph combined with a request or set of requests.</em></p>
+<p>A dataset explicitly includes not only data but also processing steps and thus increases its flexibility to address errors and facilitates reproducibility.</p>
+<h2 id="data-independence">Data Independence</h2>
+<p>foReal's declarative approach abstracts the physical data acquisition (vibration registered by a sensor and digitized) into a logical data access pattern (request signal from time <span class="arithmatex">\(t_0\)</span> to time <span class="arithmatex">\(t_1\)</span>). Similarly, we want to abstract the physical data model (for example a file stored in a filesystem on hard disk) into an easy to understand logical data model (for example a table). This abstraction is usually referred to as data independence.</p>
+<p>Focusing on data models is crucial in long-term monitoring projects since data from such projects is ever evolving. Over the course of a long-term measurement, changes in file formats or storage engines are likely. Moreover, changes in data types can occur when for example new sensors are installed. </p>
+<p>The foReal framework is designed to work with specific logical data models for data and annotations which will be described in the following.</p>
+<h2 id="data-cubes">Data Cubes</h2>
+<p>Environmental data is inherently multi-dimensional. Examples include </p>
+<ul>
+<li>time-series (1-dimension: time)</li>
+<li>seismic spectrograms (2-dimensions: time,frequency)</li>
+<li>images (3-dimensions: x, y, color)</li>
+<li>timelapse images (4-dimensions: time,x,y,color)</li>
+<li>seismic spectrograms in global context (7-dimensions: latitude,longitude,elevation,station,channel,time,frequency)</li>
+</ul>
+<p>The logical data model for these kind of data are typically multi-dimensional arrays or so-called data cubes. In environmental monitoring, often the data along a dimension is meaningless without additional information, such as timestamps for the time dimension, frequency steps for the frequency dimension, or coordinates for spatial data. Therefore, data cubes for environmental data require the option of additional one dimensional arrays (from here on called coordinates) describing the content along each dimensions. These so-called labeled multi-dimensional arrays are implemented efficiently in the <a href="https://xarray.dev/">xarray</a> framework, which is used internally by foReal.</p>
+<p>foReal's request-driven data access is grounded in data cubes. A request in  foReal slices out a segment of a multi-dimensional data cube using coordinates to select the requested data segment.</p>
+<h2 id="annotations">Annotations</h2>
+<p>We want to achieve data independence for annotations, meaning instead of defining annotations by their representation in the physical data storage (name of the folder containing images of respective label) we want to abstract it into a logical data model (directive to connect data with a label). This requirement comes from the fact, that the we need to be able to restructure or resample the data without loosing the annotation information. For examples if the annotations are stored as folder names (as done for certain image datasets) they are attached to the storage structure (filesystem). When we change the storage system or just restructure the data by sorting it differently the annotations information might be lost. Moreover, annotation should be reusable and independent of data type. If we, for example, annotate wind in a time-series stream, we should in principle be able to apply this annotation to a co-located seismic sensor.</p>
+<p>In foReal, annotation can be connected to the respective data by using a similar approach as used for <em>requests} in the previous section.  Like a request, annotation contain an </em>indexers} key defining the concrete slice of data to be annotated. In addition, it contains a *tags} key containing the annotation. We do not put harsh constraints on what a target is but usually it would be the class name of the annotated event. The annotation might additionally contain more information such as how or by whom the annotation was created or an event id to trace and track multiple annotations of the same event, for example to annotate the same mountaineer on multiple, consecutive timelapse images.
+The annotation format is exemplified in the following figure using images and seismic data. The figure shows graphically which segment of the image or seismic stream is annotated. In addition, three annotations are given in JSON format.</p>
+<p><img alt="annotation example" src="../assets/images/annotationexample.png" /></p>
+<pre><code>{ &quot;indexers&quot;: {
+    &quot;time&quot;: { 
+      &quot;start&quot;: &quot;2016-08-04T11:44:17&quot;, 
+      &quot;stop&quot;: &quot;2016-08-04T12:09:32&quot;}, 
+    &quot;sensor&quot;: [&quot;MH36&quot;, &quot;MH38&quot;]}, 
+  &quot;tags&quot;: {&quot;mountaineer&quot;: true}}
+...
+{ &quot;indexers&quot;: {  
+    &quot;time&quot;: [&quot;2016-08-12:04:12&quot;], 
+    &quot;x&quot;: { 
+      &quot;start&quot;: 95, 
+      &quot;stop&quot;: 145},
+    &quot;y&quot;:{ 
+      &quot;start&quot;: 20, 
+      &quot;stop&quot;: 70}, 
+    &quot;sensor&quot;: [&quot;MHDSLR&quot;]},
+  &quot;tags&quot;: {&quot;mountaineer&quot;: true}}
+...
+{ &quot;indexers&quot;: {
+    &quot;time&quot;: {
+      &quot;start&quot;: &quot;2016-05-02&quot;, 
+      &quot;stop&quot;: &quot;2016-09-15&quot;}, 
+    }, 
+  &quot;tags&quot;: {
+    &quot;clear of snow&quot;: {&quot;annotator&quot;:&quot;mountain-lodge keeper&quot;}}}
+...
+</code></pre>
+<hr />
+<p><b>Sensor-specific label or sensor-independent annotation can be described using the same syntax. <em>indexers</em> describes the actual data slice to be annotated. <em>tags</em> contains the annotation.</b></p>
+<p>foReal annotations can be used for two purposes. First, a given annotation can be used to load the corresponding data segment. Second, a given data segment can be annotated with the corresponding annotation(s). </p>
+<p><img alt="annotation config example" src="../assets/images/annotationconfig.svg" /></p>
+<hr />
+<p><b>Usage of annotations in the context of foReal. The request's start and end time are highlighted as the red line below the signals. In <strong>a)</strong> an annotation is used as a request to load the corresponding seismic segment. In <strong>b)</strong> a request from a dataset is used to load a seismic segment and all corresponding annotations. The upper path in <strong>b)</strong>} demonstrates how a request (one red line), which can be regarded as a one-dimensional "bounding box", overlaps with the annotation's one-dimensional "bounding boxes" (three black lines).</b></p>
+<p>Part a) in the above figure depicts how an annotation can be used to load a data segment. Since each annotation contains the same information as a request, it can be used as-is to request the annotated data segment. Moreover, it can be used to retrieve correlated sensor values. For example, we can use the seismic annotation to request all correlated images by replacing the annotation's <em>sensor</em> field with the sensor name of the camera.</p>
+<p>Annotating a given data segment with annotations is a common scenario, for example when multiple mountaineers are annotated on an image and we want to crop the image while retaining the annotations within the cropped are and discard the annotations which are outside. This scenario is more complex because we need to be able to find the annotations describing a data segment of arbitrary size. </p>
+<p>In our framework, the data segment can be defined by a request. A request can be regarded as bounding box. For the case of a one-dimensional time series, the "bounding box" would consist of start and end time. For the case of a cropped image, the bounding box would consist of the cropping area (start and end values on both, horizontal and vertical axis). In general, a request can be regarded as a multi-dimensional axis-aligned bounding box, which means it consist of a start and end value for each dimension of the array. Similarly, an annotation can be seen as such a bounding box. It describes what (event, object, ...) is inside the bounding box area. </p>
+<p>The task is to find all annotations of the annotation set which are within the request's boundaries, meaning we need to find all annotation bounding boxes that overlap with the request bounding box (illustrated in the top path of the above fiugure part b) ). We implement the multi-dimensional overlap detection iteratively by first checking for overlap on the first dimension between request and annotation set. The other dimensions will only be checked for the pairs with an overlap in the first dimension.
+Conceptually, the way a request slices out an annotation segment out of an annotation set is similar to the way a request slices a data segment out of the data cube as illustrated at the bottom of part b) in the above figure.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../get_started/" class="btn btn-neutral float-left" title="Getting Started"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../examples/" class="btn btn-neutral float-right" title="Examples">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/niowniow/foreal" class="fa fa-github" style="color: #fcfcfc"> GitHub</a>
+        </span>
+    
+    
+      <span><a href="../get_started/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../examples/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '..';</script>
+    <script src="../js/theme_extra.js" defer></script>
+    <script src="../js/theme.js" defer></script>
+      <script src="../javascripts/mathjax.js" defer></script>
+      <script src="https://polyfill.io/v3/polyfill.min.js?features=es6" defer></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+      <script src="../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>
