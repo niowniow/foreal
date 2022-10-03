@@ -1,4 +1,4 @@
-import numpy as np
+#import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -107,7 +107,7 @@ def get_taskgraphs(classes=None):
 
     # Create an instance of a seismic portal to load the data from arclink.ethz.ch
     seismic_inst = SeismicPortal(
-        use_arclink={"url": "http://arclink.ethz.ch"},
+        use_arclink={"url": "http://eida.ethz.ch"},
         channel=["EHZ"],
         station=["MH36"],
         location=["A"],

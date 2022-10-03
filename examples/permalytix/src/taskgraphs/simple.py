@@ -16,7 +16,7 @@ def get_taskgraphs():
 
     # Create an instance of a seismic portal to load the data from arclink.ethz.ch
     seismic_inst = SeismicPortal(
-        use_arclink={"url": "http://arclink.ethz.ch"},
+        use_arclink={"url": "http://eida.ethz.ch"},
         channel=["EHZ"],
         station=["MH36"],
         location=["A"],
