@@ -35,7 +35,6 @@ jobs:
         name: docs
         path: docs/_site
 
-jobs:
   docs-publish:
     needs: [ "test", "docs" ]
     runs-on: ubuntu-latest
