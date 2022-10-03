@@ -1,9 +1,9 @@
 # Getting Started
 
 ## Code examples
-If you prefer to deep dive into the framework you can check out two examples:
+If you prefer to deep dive into the framework you can check out two examples. The [examples section](examples.md) shows how to
 
-- How to use the [integrated webportal](examples/permalytix/src/webportal.py)
+- How to use the integrated webportal
 - How to create a dataset for machine learning applications
 
 ## Concepts
