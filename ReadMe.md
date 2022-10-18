@@ -2,7 +2,7 @@
 
 foReal offers data processing for real-world sensor deployments. A multi-modal, multi-application data processing and analysis framework designed for data exploration.
 
-Please refer to the documentation for a full user guide
+Please refer to the [documentation](https://niowniow.github.io/foreal/) for a full user guide
 
 **NOTE: This framework is experimental and still under development. It's by no means production-ready and might break anytime!**
 
