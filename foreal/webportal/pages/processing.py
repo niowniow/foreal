@@ -43,17 +43,10 @@ from matplotlib.pyplot import text
 import foreal
 from foreal.apps.annotations import requests_from_file, to_formatted_json
 from foreal.core.graph import base_name
-
+from foreal.convenience import get_cytoscape_elements
 cyto.load_extra_layouts()
 
 from .. import shared
-
-text_request = """{
-    "indexers": {
-       "time":{"start":"2022-06-05T11:20:00","stop":"2022-06-05T11:40:00"},
-    },
-}"""
-
 
 from foreal.convenience import dict_update
 
@@ -61,7 +54,7 @@ from ..app import WebportalPage
 
 
 class ProcessingPage(WebportalPage):
-    def __init__(self, app=None, taskgraphs=None):
+    def __init__(self, app=None, taskgraphs=None, default_request=""):
         graph_names = []
         for app_name in taskgraphs:
             if "." in app_name:
@@ -85,7 +78,7 @@ class ProcessingPage(WebportalPage):
 
         work = list(set(flatten(dsk_keys)))
 
-        dsk_dict = dsk.to_dict()
+        dsk_dict = dict(dsk)
         # dsk_dict = dsk
         nodes = []
         edges = []
@@ -138,7 +131,7 @@ class ProcessingPage(WebportalPage):
                 # dcc.Dropdown(options=catalog_names, value=0, id="configs-dropdown"),
                 dcc.Textarea(
                     id="textarea-state-example",
-                    value=text_request,
+                    value=default_request,
                     style={"width": "100%", "height": 200},
                 ),
                 # dcc.Input(
@@ -212,8 +205,7 @@ class ProcessingPage(WebportalPage):
                 taskgraph = [taskgraph]
 
             dsk, dsk_keys = dask.base._extract_graph_and_keys(taskgraph)
-            dsk_dict = dsk.to_dict()
-
+            dsk_dict = dict(dsk)
             if not selected_keys:
                 selected_keys = dsk_dict.keys()
 
@@ -236,38 +228,6 @@ class ProcessingPage(WebportalPage):
 
             return True, html.Div(components)
 
-        def get_cytoscape_elements(graph):
-            if not isinstance(graph, list):
-                graph = [graph]
-            dsk, dsk_keys = dask.base._extract_graph_and_keys(graph)
-            work = list(set(flatten(dsk_keys)))
-            if not isinstance(dsk, dict):
-                dsk_dict = dsk.to_dict()
-            else:
-                dsk_dict = dsk
-            # dsk_dict = dsk
-            nodes = []
-            edges = []
-
-            roots = ["#" + k for k in work]
-            while work:
-                new_work = {}
-                for k in work:
-                    nodes.append({"data": {"id": k, "label": k}})
-
-                    current_deps = get_dependencies(dsk_dict, k, as_list=True)
-
-                    for dep in current_deps:
-                        edges.append({"data": {"source": dep, "target": k}})
-
-                        if dep not in work:
-                            new_work[dep] = True
-
-                work = new_work
-
-            elements = nodes + edges
-
-            return elements
 
         # @callback(
         #     Output('textarea-state-example', 'value'),
@@ -278,11 +238,19 @@ class ProcessingPage(WebportalPage):
         #     return json.dumps(selectedData, indent=2)
 
         @callback(
-            Output("cytoscape-taskgraph", "elements"), Input("graphs-dropdown", "value")
+            Output("cytoscape-taskgraph", "elements"),
+            Output("cytoscape-taskgraph", "layout"),
+            Input("graphs-dropdown", "value"),
         )
         def update_output(taskgraph_select):
             taskgraph = extract_graph(taskgraph_select)
-            return get_cytoscape_elements(taskgraph)
+            elements, roots = get_cytoscape_elements(taskgraph)
+            layout = {
+                "name": "dagre",
+                "rankDir": "LR",
+                "roots": ",".join(roots),
+            }
+            return elements, layout
 
         def extract_graph(taskgraph_select):
             app_select = taskgraph_select.split(".")[0]
@@ -402,8 +370,11 @@ class ProcessingPage(WebportalPage):
                 new_keys = []
                 for k in configured_graph_keys:
                     for sk in selected_keys:
-                        if base_name(sk) == base_name(k):
-                            new_keys += [k]
+                        if not isinstance(sk, list):
+                            sk = [sk]
+                        for skk in sk:
+                            if base_name(skk) == base_name(k):
+                                new_keys += [k]
                 xc = Delayed(new_keys, configured_graph)
                 x = dask.compute(xc)
 
@@ -502,7 +473,7 @@ class ProcessingPage(WebportalPage):
                             )
                         ]
 
-                elements = get_cytoscape_elements(configured_collection)
+                elements, roots = get_cytoscape_elements(configured_collection)
 
                 print("transmitting to client")
                 return html.Div(children=components), config_markdown, elements

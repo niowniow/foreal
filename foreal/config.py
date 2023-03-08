@@ -27,6 +27,7 @@ _GLOBAL_CONFIG_DICT = {
     "datetime_format": None,
     "fail_mode": "fail",
     "use_delayed": False,
+    "probe_request": None,
 }
 
 

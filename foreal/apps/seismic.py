@@ -260,7 +260,6 @@ class SeismicPortal(Node):
         station = r.get("station", "")
 
         if r["use_arclink"]:
-
             if isinstance(r["use_arclink"], dict):
                 arclink = r["use_arclink"]
             else:
@@ -311,7 +310,6 @@ class SeismicPortal(Node):
             # TODO: potentially resample
 
         else:
-
             # logging.info('Loading seismic with fdsn')
 
             if self.get_obspy_stream is None:

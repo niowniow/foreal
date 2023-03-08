@@ -22,23 +22,29 @@ import pandas as pd
 import xarray as xr
 from xarray.core import dataarray
 
-from foreal.convenience import exclusive_indexing, indexers_to_slices
+from foreal.convenience import (
+    exclusive_indexing,
+    indexers_to_slices,
+    to_datetime_conditional,
+)
 from foreal.core import Node
 
 
 class MinMaxDownsampling(Node):
     def __init__(
-        self, rate=1, dim=None, input_sampling_rate=None, reference_value=None
+        self, factor=1, dim=None, input_sampling_rate=None, reference_value=None
     ):
         # dim is by default the last dimension
         # since we always choose two values (min and max) per bucket the
-        # the internal downsampling rate must be of factor two larger than
-        # the effective (and desired) downsampling rate
+        # the internal downsampling factor must be of factor two larger than
+        # the effective (and desired) downsampling factor
         if reference_value is None:
             reference_value = "2000-01-01"
         self.reference_value = pd.to_datetime(reference_value)
-        super().__init__(rate=rate, dim=dim, input_sampling_rate=input_sampling_rate)
-        # self.rate = rate * 2
+        super().__init__(
+            factor=factor, dim=dim, input_sampling_rate=input_sampling_rate
+        )
+        # self.factor = factor * 2
         # self.dim = dim
 
     def align_indexers(
@@ -79,32 +85,32 @@ class MinMaxDownsampling(Node):
 
         indexers = requests["indexers"]
 
-        if self.config["dim"] != "time":
+        dim = requests["self"]["dim"]
+
+        if dim != "time":
             raise NotImplementedError()
 
+        input_sampling_rate = requests["self"]["input_sampling_rate"]
+        internal_factor = requests["self"]["factor"] * 2
         window_length_seconds = pd.to_timedelta(
-            self.config["rate"] / self.config["input_sampling_rate"], "seconds"
+            internal_factor / input_sampling_rate, "seconds"
         )
-        input_sampling_rate = self.config["input_sampling_rate"]
-        rate = self.config["rate"]
-
-        requests["self"] = {"indexers": deepcopy(requests["indexers"])}
-        requests["indexers"][self.config["dim"]]["start"] = (
-            pd.to_datetime(requests["indexers"][self.config["dim"]]["start"])
-            - window_length_seconds
+        requests["self"]["indexers"] = deepcopy(requests["indexers"])
+        requests["indexers"][dim]["start"] = (
+            pd.to_datetime(requests["indexers"][dim]["start"]) - window_length_seconds
         )
-        #        requests['indexers'][self.config['dim']]['stop'] = pd.to_datetime(requests['indexers'][self.config['dim']]['stop']) + window_length_seconds
+        #        requests['indexers'][requests['self']['dim']]['stop'] = pd.to_datetime(requests['indexers'][requests['self']['dim']]['stop']) + window_length_seconds
 
-        if self.config["dim"] in indexers:
+        if dim in indexers:
             # align the start of the indexing to make the spectogram windows evenly distributed
-            requests["indexers"][self.config["dim"]]["start"] = self.align_indexers(
-                requests["indexers"][self.config["dim"]]["start"],
-                rate,
+            requests["indexers"][dim]["start"] = self.align_indexers(
+                requests["indexers"][dim]["start"],
+                internal_factor,
                 input_sampling_rate,
             )
-            requests["indexers"][self.config["dim"]]["stop"] = self.align_indexers(
-                requests["indexers"][self.config["dim"]]["stop"],
-                rate,
+            requests["indexers"][dim]["stop"] = self.align_indexers(
+                requests["indexers"][dim]["stop"],
+                internal_factor,
                 input_sampling_rate,
                 round_type="ceil",
             )
@@ -115,8 +121,8 @@ class MinMaxDownsampling(Node):
         return requests
 
     def forward(self, data=None, request=None):
-        dim = request["dim"]
-        rate = request["rate"] * 2
+        dim = request["self"]["dim"]
+        internal_factor = request["self"]["factor"] * 2
         if dim is None:
             dim = data.dims[-1]
 
@@ -126,51 +132,34 @@ class MinMaxDownsampling(Node):
         elif "indexers" in request:
             indexers = request["indexers"]
 
-        # # FIXME: START: regular downsampling for testing purposes
-        # x_ds = data.isel({dim: slice(None, None, request["rate"])})
-        # x_ds = x_ds.dropna(dim=dim, how="all")
-
-        # if indexers is not None:
-        #     i2slices = indexers_to_slices(indexers)
-        #     x_ds = x_ds.sel(i2slices)
-        #     drop_indexers = {k: indexers[k]["stop"] for k in indexers}
-        #     try:
-        #         x_ds = x_ds.drop_sel(drop_indexers, errors="ignore")
-        #     except Exception as ex:
-        #         pass
-
-        # return x_ds
-        # # FIXME: END: regular downsampling for testing purposes
-
-        # rolling = data.rolling(dim={dim: rate})
-        # x_min = rolling.construct("buckets", stride=rate)
-        # print(x_min)
-        # x_min = x_min.min("buckets")
-
-        # # rolling = data.rolling(dim={dim: rate},center=True)
-        # x_max = rolling.construct("buckets", stride=rate)
-        # print(x_max)
-        # x_max = x_max.max("buckets")
-
-        rolling = data.rolling(dim={dim: rate}, min_periods=rate, stride=rate)
+        rolling = data.rolling(
+            dim={dim: internal_factor},
+            min_periods=internal_factor,
+            stride=internal_factor,
+        )
         x_min = rolling.min().dropna(dim)
         x_max = rolling.max().dropna(dim)
-        # print("xmin",x_min)
-        # print("xmax",x_max)
-        # print(data)
-        # print("xr",rolling.construct("buckets"))
-        # print(request)
+
+        ## this achieves the same but much slower!
+        # region = internal_factor/request['self']['input_sampling_rate']
+        # if pd.api.types.is_datetime64_any_dtype(data[dim]):
+        #     region = pd.to_timedelta(region,"s")
+        # x_min = data.resample({dim:region}).min()
+        # x_max = data.resample({dim:region}).max()
 
         if "sampling_rate" in data.attrs:
-            step = 1 / (data.attrs["sampling_rate"] / (rate))
+            step = 1 / (data.attrs["sampling_rate"] / (internal_factor))
         elif (
-            request is not None and request.get("input_sampling_rate", None) is not None
+            request is not None
+            and request.get("self", {}).get("input_sampling_rate", None) is not None
         ):
-            step = 1 / (request["input_sampling_rate"] / (rate))
+            step = 1 / (request["self"]["input_sampling_rate"] / (internal_factor))
         elif len(x_max[dim]) > 1:
-            step = x_max[dim][1] - x_max[dim][0]
+            step = (x_max[dim][1] - x_max[dim][0]) / 2
+            if isinstance(step, xr.DataArray):
+                step = step.values / np.timedelta64(1, "s")
             # print(data)
-            # raise RuntimeError("Please provide a sampling rate")
+            # raise RuntimeError("Please provide a sampling factor")
             # TODO: Computing based on data might lead to issues if the first
             # two samples are unlike the rest and/or irregular sampling intervals
         else:
@@ -231,9 +220,11 @@ class MinMaxDownsampling(Node):
         # FIXME: too expensive
         #        x_ds = x_ds.sortby(dim)
         #        x_ds = x_ds.chunk({dim:x_ds.sizes[dim]})
-        x_ds.attrs["sampling_rate"] = 1 / stepo
+        x_ds.attrs["sampling_rate"] = 1 / stepo * 2
         if "sampling_rate" in data.attrs:
-            x_ds.attrs["sampling_rate"] = data.attrs["sampling_rate"] / rate * 2
+            x_ds.attrs["sampling_rate"] = (
+                data.attrs["sampling_rate"] / internal_factor * 2
+            )
 
         if indexers is not None:
             # print(x_ds,indexers)
@@ -266,42 +257,30 @@ class MinMaxDownsampling(Node):
 
                 # assert False
             # Fake `excluding indexing`
-            drop_indexers = {k: indexers[k]["stop"] for k in indexers}
+            drop_indexers = {
+                k: indexers[k]["stop"]
+                for k in indexers
+                if isinstance(indexers[k], dict) and "stop" in indexers[k]
+            }
             try:
                 x_ds = x_ds.drop_sel(drop_indexers, errors="ignore")
             except Exception as ex:
                 pass
 
         return x_ds
-        # print(x_ds[dim])
-        # exit()
-        x_ds = x_ds.rename({dim: dim + "_rn"})
-        x_ds = x_ds.stack({dim: (dim + "_rn", dim + "_concat")})
-        print(x_ds)
-
-        # x_ds = x_ds.drop_vars('time')
-        print(x_ds)
-        print(x_ds.indexes[dim])
-        x_ds[dim] = x_ds.indexes[dim].droplevel(1)
-        print(x_ds.indexes[dim])
-        exit()
-        # del x_ds[dim+'_concat']
-        # x_ds = x_ds.dropna(dim)
-
-        # x_ds = x_ds.sum(dim+'_concat')
-
-        return x_ds
 
 
 class MaxDownsampling(Node):
     def __init__(
-        self, rate=1, dim=None, input_sampling_rate=None, reference_value=None
+        self, factor=1, dim=None, input_sampling_rate=None, reference_value=None
     ):
         # dim is by default the last dimension
         if reference_value is None:
             reference_value = "2000-01-01"
         self.reference_value = pd.to_datetime(reference_value)
-        super().__init__(rate=rate, dim=dim, input_sampling_rate=input_sampling_rate)
+        super().__init__(
+            factor=factor, dim=dim, input_sampling_rate=input_sampling_rate
+        )
 
     def align_indexers(
         self, index, stride, input_sampling_rate, round_type="floor", end_index=None
@@ -341,33 +320,34 @@ class MaxDownsampling(Node):
 
         indexers = requests["indexers"]
 
-        if self.config["dim"] != "time":
+        dim = requests["self"]["dim"]
+
+        if dim != "time":
             raise NotImplementedError()
 
-        input_sampling_rate = self.config["input_sampling_rate"]
+        input_sampling_rate = requests["self"]["input_sampling_rate"]
         if input_sampling_rate is not None:
             window_length_seconds = pd.to_timedelta(
-                self.config["rate"] / input_sampling_rate, "seconds"
+                requests["self"]["factor"] / input_sampling_rate, "seconds"
             )
-            rate = self.config["rate"]
+            factor = requests["self"]["factor"]
 
-            requests["self"] = {"indexers": deepcopy(requests["indexers"])}
-            requests["indexers"][self.config["dim"]]["start"] = (
-                pd.to_datetime(requests["indexers"][self.config["dim"]]["start"])
+            requests["indexers"][dim]["start"] = (
+                pd.to_datetime(requests["indexers"][dim]["start"])
                 - window_length_seconds
             )
-            #        requests['indexers'][self.config['dim']]['stop'] = pd.to_datetime(requests['indexers'][self.config['dim']]['stop']) + window_length_seconds
+            #        requests['indexers'][requests['self']['dim']]['stop'] = pd.to_datetime(requests['indexers'][requests['self']['dim']]['stop']) + window_length_seconds
 
-            if self.config["dim"] in indexers:
+            if dim in indexers:
                 # align the start of the indexing to make the spectogram windows evenly distributed
-                requests["indexers"][self.config["dim"]]["start"] = self.align_indexers(
-                    requests["indexers"][self.config["dim"]]["start"],
-                    rate,
+                requests["indexers"][dim]["start"] = self.align_indexers(
+                    requests["indexers"][dim]["start"],
+                    factor,
                     input_sampling_rate,
                 )
-                requests["indexers"][self.config["dim"]]["stop"] = self.align_indexers(
-                    requests["indexers"][self.config["dim"]]["stop"],
-                    rate,
+                requests["indexers"][dim]["stop"] = self.align_indexers(
+                    requests["indexers"][dim]["stop"],
+                    factor,
                     input_sampling_rate,
                     round_type="ceil",
                 )
@@ -376,25 +356,24 @@ class MaxDownsampling(Node):
         return requests
 
     def forward(self, data=None, request=None):
-        dim = request["dim"]
-        rate = request["rate"]
+        dim = request["self"]["dim"]
+        factor = request["self"]["factor"]
         if dim is None:
             dim = data.dims[-1]
 
         indexers = None
         if "self" in request:
             indexers = request["self"]["indexers"]
-        elif "indexers" in request:
-            indexers = request["indexers"]
+        # elif "indexers" in request:
+        #     indexers = request["indexers"]
 
-        rolling = data.rolling(dim={dim: rate}, min_periods=rate, stride=rate)
+        rolling = data.rolling(dim={dim: factor}, min_periods=factor, stride=factor)
         x_ds = rolling.max().dropna(dim)
 
         if "sampling_rate" in data.attrs:
-            x_ds.attrs["sampling_rate"] = data.attrs["sampling_rate"] / rate
+            x_ds.attrs["sampling_rate"] = data.attrs["sampling_rate"] / factor
 
         if indexers is not None:
-
             try:
                 i2slices = indexers_to_slices(indexers)
                 x_ds = x_ds.sel(i2slices)
@@ -411,13 +390,13 @@ class MaxDownsampling(Node):
 
 
 class LTTBDownsampling(Node):
-    def __init__(self, rate=1, dim=None):
+    def __init__(self, factor=1, dim=None):
         # Based on and many thanks to https://github.com/javiljoen/lttb.py
-        super().__init__(rate=rate, dim=dim)
+        super().__init__(factor=factor, dim=dim)
 
     def forward(self, data=None, request=None):
         dim = request["dim"]
-        rate = request["rate"]
+        factor = request["factor"]
         if dim is None:
             dim = data.dims[-1]
         """ The following tries to re-implement the LTTB algorithm for xarray
@@ -445,16 +424,16 @@ class LTTBDownsampling(Node):
             For an array of length l that should be split into n sections, it returns l % n sub-arrays of size l//n + 1 and the rest of size l//n.
         """
 
-        # adapt downsampling rate
-        n_out = data.sizes[dim] / rate
-        rate = np.ceil(data.sizes[dim] / (n_out - 2)).astype(np.int)
+        # adapt downsampling factor
+        n_out = data.sizes[dim] / factor
+        factor = np.ceil(data.sizes[dim] / (n_out - 2)).astype(np.int)
 
         end = data.isel({dim: -1})
         data = data.isel({dim: slice(0, -1)})
-        rolling = data.rolling(dim={dim: rate}, stride=rate)
+        rolling = data.rolling(dim={dim: factor}, stride=factor)
 
         index_bins = (
-            data[dim].rolling(dim={dim: rate}, stride=rate).construct("buckets")
+            data[dim].rolling(dim={dim: factor}, stride=factor).construct("buckets")
         )
 
         value_bins = rolling.construct("buckets")

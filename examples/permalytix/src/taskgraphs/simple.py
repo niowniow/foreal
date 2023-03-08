@@ -13,7 +13,6 @@ def to_db(x, min_value=1e-20, reference=1.0):
 
 
 def get_taskgraphs():
-
     # Create an instance of a seismic portal to load the data from arclink.ethz.ch
     seismic_inst = SeismicPortal(
         use_arclink={"url": "http://eida.ethz.ch"},

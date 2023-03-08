@@ -28,8 +28,7 @@ from tqdm import tqdm
 
 from foreal import DirectoryStore
 from foreal.config import get_setting, set_setting, setting_exists
-from foreal.convenience import (read_csv_with_store, to_csv_with_store,
-                                to_datetime)
+from foreal.convenience import read_csv_with_store, to_csv_with_store, to_datetime
 from foreal.core import Node
 
 

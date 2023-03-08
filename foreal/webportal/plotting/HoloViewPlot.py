@@ -3,6 +3,8 @@ import xarray as xr
 
 from foreal.core import Node
 
+# from holoviews.operation.datashader import datashade
+
 
 def concat_coords(da):
     string = ""
@@ -22,7 +24,7 @@ class HoloViewPlot(Node):
         components = []
         if not isinstance(data, list):
             data = [data]
-        for example in data[0]:
+        for example in data:
             if isinstance(example, xr.DataArray):
                 example.name = concat_coords(example)
 
@@ -38,7 +40,7 @@ class HoloViewPlot(Node):
                 if "frequency" in example.dims and "time" in example.dims:
                     plot = hv_ds.to(
                         hv.Image, kdims=["time", "frequency"], dynamic=False
-                    ).opts(colorbar=True, xaxis=None, yaxis=None, cmap="bgy")
+                    ).opts(colorbar=False, xaxis=None, yaxis=None, cmap="bgy")
                 else:
                     kdim = "time"
                     if "frequency" in example.dims:

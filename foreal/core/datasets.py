@@ -22,9 +22,14 @@ import zarr
 from tqdm import tqdm
 
 import foreal
-from foreal.convenience import (dict_update, indexers_to_slices, is_in_store,
-                                make_json_parsable, requests_from_store,
-                                requests_to_store)
+from foreal.convenience import (
+    dict_update,
+    indexers_to_slices,
+    is_in_store,
+    make_json_parsable,
+    requests_from_store,
+    requests_to_store,
+)
 from foreal.core import Node, Persister, configuration
 from foreal.core.graph import NodeFailedException
 

@@ -252,9 +252,7 @@ class Spectrogram(Node):
             dataarray.attrs["sampling_rate"] = 1 / (spectrum_time[1] - spectrum_time[0])
         except Exception as e:
             pass
-        #        print(pd.isnull(dataarray['time']).any())
-        #        print(request)
-        #        print(dataarray,request["self"]["indexers"])
+
         slices = indexers_to_slices(request["self"]["indexers"])
         # dataarray = dataarray.sel(slices)
         dataarray["time"] = dataarray["time"].to_index()

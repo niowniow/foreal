@@ -63,7 +63,6 @@ def get_obspy_stream(
             )  # TODO: do not hardcode it
         filenames = {}
         for channel in channels:
-
             filenames[channel] = [
                 station,
                 datayear,

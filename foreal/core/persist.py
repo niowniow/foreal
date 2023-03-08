@@ -28,10 +28,10 @@ from benedict import benedict
 from dask.utils import SerializableLock
 
 import foreal
-from foreal.convenience import (dict_update, exclusive_indexing,
-                                indexers_to_slices)
+from foreal.convenience import dict_update, exclusive_indexing, indexers_to_slices
 from foreal.core import Node
 from foreal.core.graph import Node, NodeFailedException
+from rechunker import rechunk
 
 # from dask.distributed import wait
 
@@ -136,20 +136,30 @@ class DistributedWriter(Node):
             #       list of one elements as return value
             dataarray = dataarray[0]
 
+        # mark this instance as failed to not load it again
+        availability = zarr.open(
+            self.store,
+            path=self.group + "/" + self.dynamic_dim + "_chunks",
+            mode="r+",
+            synchronizer=self.synchronizer,
+        )
+
         if isinstance(dataarray, NodeFailedException):
             # TODO: make verbose mode to give indication if it failed
-
-            # mark this instance as failed to not load it again
-            availability = zarr.open(
-                self.store,
-                path=self.group + "/" + self.dynamic_dim + "_chunks",
-                mode="r+",
-                synchronizer=self.synchronizer,
-            )
             availability[self.chunk_start : self.chunk_stop] = -1
 
             return None  # FIXME
             return dataarray
+
+        # let's check if it is already computed what we want
+        # this could happen this distributedwriter instance had to be recomputed
+        # because it's worker ended or a different process computed the chunk beofre this writer
+        # was scheduled.
+        all_computed = [
+            availability[i] == 1 for i in range(self.chunk_start, self.chunk_stop)
+        ]
+        if all(all_computed):
+            return None
 
         if self.bypass_storage:
             return dataarray
@@ -168,7 +178,10 @@ class DistributedWriter(Node):
             dataarray.name = "data"
 
         template_length = self.region_stop - self.region_start
+        # if len(dataarray[self.dynamic_dim].values) == 0:
         template_coordinate = self.start + np.arange(template_length) * self.step
+        # else:
+        #     template_coordinate = self.start + (dataarray[self.dynamic_dim].values[0] - self.start) % self.step + np.arange(template_length) * self.step
         shape = list(self.data_prototype.shape)
         index_dynamic_dim = self.data_prototype.dims.index(self.dynamic_dim)
         shape[index_dynamic_dim] = template_length
@@ -191,6 +204,7 @@ class DistributedWriter(Node):
 
         merged_dataset = xr.merge([template_da, dataarray], join="left")
         dataarray = merged_dataset[dataarray.name]
+        # merged_dataset.attrs = dataarray.attrs
 
         if dataarray.shape != template_da.shape:
             raise RuntimeError(
@@ -276,6 +290,8 @@ class DistributedWriter(Node):
         ] = dataset[key].values
         # FIXME: end of hack
 
+        del dataarray
+
         return
 
 
@@ -285,6 +301,7 @@ class Persister(Node):
         store,
         dataset_scope=None,
         prototype_request=None,
+        processing_graph=None,
         dynamic_dim="time",
         group_keys=None,
         synchronizer=None,
@@ -330,7 +347,7 @@ class Persister(Node):
             self.chunk_cache = chunk_cache
 
         # Initialize empty class variables
-        self.processing_graph = None
+        self.processing_graph = processing_graph
         self.data_prototypes = {}
         self.dynamic_dim_is_datetime = False
         self.dataset_start = None
@@ -429,8 +446,63 @@ class Persister(Node):
             self.chunk_size = attrs["chunk_size"]
             self.chunk_shape = attrs["chunk_shape"]
 
+            drop_variables = None
+            if self.isfinalized(group=group):
+                rechunk_variables = [
+                    self.dynamic_dim + "_chunks",
+                    self.dynamic_dim + "_nondim",
+                ]
+                # try to open reschuelde
+                drop_variables = []
+                for var in rechunk_variables:
+                    dim_group = zarr.open(
+                        self.store,
+                        path=group + "/" + var,
+                        mode="r",
+                        chunk_cache=self.chunk_cache,
+                    )
+                    print(dim_group.shape)
+                    print(self.store)
+                    print(var)
+                    if not dim_group.attrs.get("rechunked", False):
+                        # the group not already the rechunked version. do it
+                        # in_memory_x = np.array(dim_group) # this reads the whole zarr array into memory
+                        # new_array = zarr.array(in_memory_x, chunks=in_memory_x.shape, store=self.store, path=group + "/" + var + "_finalized_tmp")
+                        shape = ("auto",)
+                        target_chunks = dask.array.core.auto_chunks(
+                            shape, dim_group.shape, limit=None, dtype=dim_group.dtype
+                        )
+                        array_plan = rechunk(
+                            dim_group,
+                            target_chunks,
+                            "1000MB",
+                            target_store=self.store,
+                            target_options={
+                                "path": group + "/" + var + "_finalized_tmp"
+                            },
+                            temp_store=self.store,
+                            temp_options={"path": group + "/" + var + "_tmp"},
+                        )
+                        tmp_array = array_plan.execute()
+                        tmp_array.attrs["rechunked"] = True
+                        zarr_group = zarr.open(
+                            self.store,
+                            path=group,
+                            mode="a",
+                            chunk_cache=self.chunk_cache,
+                        )
+
+                        zarr_group.move(var, var + "_nchunks")
+                        zarr_group.move(var + "_finalized_tmp", var)
+
+                        drop_variables += [var + "_nchunks"]
+
             ds = xr.open_zarr(
-                self.store, group=group, chunk_cache=self.chunk_cache, chunks=None
+                self.store,
+                group=group,
+                chunk_cache=self.chunk_cache,
+                chunks="auto",
+                drop_variables=drop_variables,
             )
 
             da = ds[self.dask_key_name]
@@ -459,12 +531,12 @@ class Persister(Node):
             if not threaded:
                 with dask.config.set(scheduler="single-threaded"):
                     x_data_conf = foreal.core.configuration(
-                        self.processing_graph, prototype_request
+                        self.processing_graph, prototype_request, optimize_graph=False
                     )
                     x_data_computed = dask.compute(x_data_conf)[0]
             else:
                 x_data_conf = foreal.core.configuration(
-                    self.processing_graph, prototype_request
+                    self.processing_graph, prototype_request, optimize_graph=False
                 )
 
                 x_data_computed = dask.compute(x_data_conf)[0]
@@ -596,7 +668,6 @@ class Persister(Node):
             #     dtype=chunks_dynamic.dtype,
             #     chunks=1,
             # )
-            # exit()
         except zarr.errors.ContainsGroupError:
             print("Using persister dataset already present at", self.store.path)
             pass
@@ -623,14 +694,33 @@ class Persister(Node):
 
         return data_prototype
 
+    # def cache_me_if_you_can(self, x, group=""):
+    #     if self.isfinalized(group=group):
+    #         return np.array(x) # this reads the whole zarr array into memory
+
+    #     return x
+
     def cache_me_if_you_can(self, x, group=""):
         if self.isfinalized(group=group):
-            return np.array(x)
+            # try:
+            #     # we try to read from the rechunked version of the group
+            #     x_final = zarr.open(
+            #             self.store,
+            #             path=group + "/" + self.dynamic_dim + "_chunks_finalized",
+            #             mode="r",
+            #             chunk_cache=self.chunk_cache,
+            #         )
+            #     return np.array(x_final)
+            # except:
+            #     in_memory_x = np.array(x) # this reads the whole zarr array into memory
+            #     new_x = zarr.array(in_memory_x, chunks=in_memory_x.shape, store=self.store, path=group + "/" + self.dynamic_dim + "_chunks_finalized")
+            #     return in_memory_x
+            in_memory_x = np.array(x)  # this reads the whole zarr array into memory
+            return in_memory_x
 
         return x
 
     def get_availability(self, group=None, request=None):
-
         # Make sure default arguments are non-mutable
         if group is None:
             group = []
@@ -778,21 +868,21 @@ class Persister(Node):
 
                 insertions += [
                     DistributedWriter(
-                        self.store,
-                        self.dataset_start,
-                        self.dynamic_dim,
-                        self.step,
-                        self.synchronizer,
-                        group,
-                        i,
-                        region_start,
-                        region_stop,
-                        start,
-                        stop,
-                        chunk_start,
-                        chunk_stop,
-                        self.dask_key_name,
-                        self.data_prototypes[group],
+                        store=self.store,
+                        dataset_start=self.dataset_start,
+                        dynamic_dim=self.dynamic_dim,
+                        step=self.step,
+                        synchronizer=self.synchronizer,
+                        group=group,
+                        i=i,
+                        region_start=region_start,
+                        region_stop=region_stop,
+                        start=start,
+                        stop=stop,
+                        chunk_start=chunk_start,
+                        chunk_stop=chunk_stop,
+                        dask_key_name=self.dask_key_name,
+                        data_prototype=self.data_prototypes[group],
                         bypass_storage=request["self"].get("bypass_storage", False),
                     ).forward
                 ]
@@ -861,6 +951,14 @@ class Persister(Node):
         availability = self.get_availability(group, request)
         requested_availability = availability[availability_start:availability_stop]
         return requested_availability
+
+    def open_group(group):
+        self.ds[group] = xr.open_zarr(
+            self.store,
+            group=group,
+            chunk_cache=self.chunk_cache,
+            chunks=None,
+        )
 
     def forward(self, data, request):
         if request["self"]["bypass"]:
@@ -1020,7 +1118,6 @@ class Persister(Node):
             elif dynamic_dim_index == self.data_prototypes[group].ndim - 1:
                 return_value = self.raw[group][..., region_start:region_stop]
             else:
-
                 slicer = [
                     slice(None)
                     if dynamic_dim_index != i
@@ -1213,6 +1310,10 @@ import foreal
 from foreal.convenience import read_pickle_with_store, to_pickle_with_store
 from foreal.core import Node
 from foreal.core.graph import NodeFailedException
+from typing import Callable
+from multiprocessing import Manager
+
+manager = Manager()
 
 
 def string_timestamp(o):
@@ -1227,13 +1328,15 @@ class HashPersister(Node):
         self,
         store,
         selected_keys=None,
+        compression=None,
     ):
         super().__init__()
         if isinstance(store, str) or isinstance(store, Path):
             store = zarr.DirectoryStore(store)
         self.store = store
+        self.compression = compression
         self._mutex = SerializableLock()
-        self.what_is_being_written = {}
+        # self.what_is_being_written = manager.dict()
 
         if selected_keys is None:
             # use all keys as hash
@@ -1285,7 +1388,7 @@ class HashPersister(Node):
                 return request
 
             if "fail/" + request_hash in self.store:
-                # remove previous node since we are going to load from disk
+                # remove previous node since we are going to load the fail info from disk
                 request["remove_dependencies"] = True
                 request["self"]["request_hash"] = "fail/" + request_hash
 
@@ -1293,51 +1396,328 @@ class HashPersister(Node):
                 request["self"]["action"] = "load"
                 return request
 
-            # check if the file will be written to already
-            if request_hash in self.what_is_being_written:
-                # yes? that's fine another process handled the same request
-                # we must tell the system to load the data regularly
-                # otherwise this node might not get data if the write wasn't
-                # finished before this node's forward call is processed
-                # let the system take care of optimizing potential double computations
-                return request
+            # # check if the file will be written to already
+            # if request_hash in self.what_is_being_written:
+            #     # yes? that's fine another process handled the same request
+            #     # we must tell the system to load the data regularly
+            #     # otherwise this node might not get data if the write wasn't
+            #     # finished before this node's forward call is processed
+            #     # let the system take care of optimizing potential double computations
+            #     return request
 
-            # register that we are going to write to a file
-            self.what_is_being_written[request_hash] = True
+            # # register that we are going to write to a file
+            # self.what_is_being_written[request_hash] = True
             request["self"]["action"] = "store"
 
         return request
 
     def forward(self, data, request):
         if request["self"]["action"] == "load":
-            return read_pickle_with_store(
-                self.store, request["self"]["request_hash"], compression=None
+            data = read_pickle_with_store(
+                self.store,
+                request["self"]["request_hash"],
+                compression=self.compression,
             )
+            if isinstance(data,str):
+                raise RuntimeError(f'something wrong read {data}')
+            return data
 
         if request["self"]["action"] == "store":
             try:
                 # write to file
+                # TODO: write to tmp file and move in place
                 if isinstance(data, NodeFailedException):
                     to_pickle_with_store(
                         self.store,
                         "fail/" + request["self"]["request_hash"],
                         data,
-                        compression=None,
+                        compression=self.compression,
                     )
                 else:
+                    # data.to_dataset(name=self.dask_key_name).to_zarr(
+                    #     self.store,
+                    #     group=request["self"]["request_hash"],
+                    #     mode="w-",
+                    #     compute=False,
+                    #     consolidated=True,
+                    # )
+                    if isinstance(data,str):
+                        raise RuntimeError(f'something wrong {data}')
                     to_pickle_with_store(
                         self.store,
                         request["self"]["request_hash"],
                         data,
-                        compression=None,
+                        compression=self.compression,
                     )
 
             except Exception as e:
                 print("error", e)
-            finally:
-                with self._mutex:
-                    # de-register this hash
-                    del self.what_is_being_written[request["self"]["request_hash"]]
+            # finally:
+            #     with self._mutex:
+            #         # de-register this hash
+            #         del self.what_is_being_written[request["self"]["request_hash"]]
 
             return data
-        return data
+        raise NodeFailedException("A bug in HashPersister. Please report.")
+
+
+def get_segments(
+    dataset_scope,
+    dims,
+    stride=None,
+    ref=None,
+    mode="fit",
+    minimal_number_of_segments=0,
+    timestamps_as_strings=False,
+    utc_no_tz=True,
+):
+    # modified from and thanks to xbatcher: https://github.com/rabernat/xbatcher/
+    if isinstance(mode, str):
+        mode = {dim: mode for dim in dims}
+
+    if stride is None:
+        stride = {}
+
+    if ref is None:
+        ref = {}
+
+    dim_slices = []
+    for dim in dims:
+        # if dataset_scope is None:
+        #     segment_start = 0
+        #     segment_end = ds.sizes[dim]
+        # else:
+        size = dims[dim]
+        _stride = stride.get(dim, size)
+
+        if isinstance(dataset_scope[dim], list):
+            segment_start = 0
+            segment_end = len(dataset_scope[dim])
+        else:
+            segment_start = foreal.to_datetime_conditional(
+                dataset_scope[dim]["start"], dims[dim]
+            )
+            segment_end = foreal.to_datetime_conditional(
+                dataset_scope[dim]["stop"], dims[dim]
+            )
+
+            if mode[dim] == "overlap":
+                # TODO: add options for closed and open intervals
+                # first get the lowest that window that still overlaps with our segment
+                segment_start = segment_start - np.floor(size / _stride) * _stride
+                # then align to the grid if necessary
+                if dim in ref:
+                    segment_start = (
+                        np.ceil((segment_start - ref[dim]) / _stride) * _stride
+                        + ref[dim]
+                    )
+                segment_end = segment_end + size
+            elif mode[dim] == "fit":
+                if dim in ref:
+                    segment_start = (
+                        np.floor((segment_start - ref[dim]) / _stride) * _stride
+                        + ref[dim]
+                    )
+                else:
+                    raise RuntimeError(
+                        f"mode `fit` requires that dimension {dim} is in reference {ref}"
+                    )
+            else:
+                RuntimeError(f"Unknown mode {mode[dim]}. It must be `fit` or `overlap`")
+
+        if isinstance(
+            dims[dim], pd.Timedelta
+        ):  # or isinstance(dims[dim], dt.timedelta):
+            # TODO: change when xarray #3291 is fixed
+            iterator = pd.date_range(segment_start, segment_end, freq=_stride)
+            segment_end = pd.to_datetime(segment_end)
+        else:
+            iterator = range(segment_start, segment_end, _stride)
+
+        slices = []
+        for start in iterator:
+            end = start + size
+            if end <= segment_end or (
+                len(slices) < minimal_number_of_segments
+                and not isinstance(dataset_scope[dim], list)
+            ):
+                if foreal.is_datetime(start):
+                    if utc_no_tz:
+                        start = pd.to_datetime(start, utc=True).tz_localize(None)
+                    if timestamps_as_strings:
+                        start = start.isoformat()
+                if foreal.is_datetime(end):
+                    if utc_no_tz:
+                        end = pd.to_datetime(end, utc=True).tz_localize(None)
+                    if timestamps_as_strings:
+                        end = end.isoformat()
+
+                if isinstance(dataset_scope[dim], list):
+                    slices.append(dataset_scope[dim][start:end])
+                else:
+                    slices.append({"start": start, "stop": end})
+
+        dim_slices.append(slices)
+
+    import itertools
+
+    all_slices = []
+    for slices in itertools.product(*dim_slices):
+        selector = {key: slice for key, slice in zip(dims, slices)}
+        all_slices.append(selector)
+
+    return np.array(all_slices)
+
+
+class ChunkPersister(Node):
+    def __init__(
+        self,
+        store,
+        dim: str = "time",
+        # classification_scope:dict | Callable[...,dict]=None,
+        segment_slice: dict | Callable[..., dict] = None,
+        # segment_stride:dict|Callable[...,dict]=None,
+        mode: str = "fit",
+        ref: dict = None,
+    ):
+        # if callable(classification_scope):
+        #     self.classification_scope = classification_scope
+        #     classification_scope = None
+        # else:
+        #     self.classification_scope = None
+
+        if callable(segment_slice):
+            self.segment_slice = segment_slice
+            segment_slice = None
+        else:
+            self.segment_slice = None
+
+        # if callable(segment_stride):
+        #     self.segment_stride = segment_stride
+        #     segment_stride = None
+        # else:
+        #     self.segment_stride = None
+
+        super().__init__(
+            dim=dim,
+            # classification_scope=classification_scope,
+            segment_slice=segment_slice,
+            # segment_stride=segment_stride,
+            mode=mode,
+            ref=ref,
+        )
+
+        if isinstance(store, str) or isinstance(store, Path):
+            store = zarr.DirectoryStore(store)
+        self.store = store
+
+    def __dask_tokenize__(self):
+        return (ChunkPersister,)
+
+    def configure(self, requests=None):
+        request = super().configure(requests)
+        rs = request["self"]
+
+        # if rs["dim"] == "index":
+        #     indexers = indexers_to_slices(rs["indexers"])["index"]
+        #     if isinstance(indexers, slice):
+        #         if indexers.start is None or indexers.stop is None:
+        #             raise RuntimeError(
+        #                 "indexer with dim index must have a start and stop value"
+        #             )
+        #         indexers = list(
+        #             range(indexers.start, indexers.stop, indexers.step or 1)
+        #         )
+        #     if not isinstance(indexers, list):
+        #         raise RuntimeError(
+        #             "indexer with dim index must be of type list, dict or slice"
+        #         )
+        #     segments = [{"index": {"start": x, "stop": x + 1}} for x in indexers]
+        # else:
+
+        def get_value(attr_name):
+            # decide if we use the attribute provided in the request or
+            # from a callback provided at initialization
+
+            if rs.get(attr_name, None) is None:
+                # there is no attribute in the request, check for callback
+                callback = getattr(self, attr_name)
+                if callback is not None and callable(callback):
+                    value = callback(request)
+                else:
+                    RuntimeError("No valid classification_scope provided")
+            else:
+                value = rs[attr_name]
+            return value
+
+        dataset_scope = rs["indexers"]
+        segment_slice = get_value("segment_slice")
+        # segment_stride = get_value("segment_stride")
+        segments = get_segments(
+            dataset_scope,
+            segment_slice,
+            # segment_stride,
+            ref=rs["ref"],
+            mode=rs["mode"],
+            timestamps_as_strings=True,
+            minimal_number_of_segments=1,
+        )
+
+        cloned_requests = []
+        cloned_hashpersisters = []
+        for segment in segments:
+            segment_request = deepcopy(request)
+            del segment_request["self"]
+            dict_update(segment_request, {"indexers": segment})
+            cloned_requests += [segment_request]
+            cloned_hashpersister = HashPersister(
+                self.store,
+            )
+            cloned_hashpersister.dask_key_name = self.dask_key_name + "_hashpersister"
+            cloned_hashpersisters += [cloned_hashpersister.forward]
+
+        # Insert predecessor
+        # new_request = {}
+        request["clone_dependencies"] = cloned_requests
+        request["insert_predecessor"] = cloned_hashpersisters
+
+        return request
+
+    def forward(self, data, request):
+        if not isinstance(data, list):
+            data = [data]
+        # print(len(data))
+        def unpack_list(inputlist):
+            new_list = []
+            for item in inputlist:
+                if isinstance(item,list):
+                    new_list += unpack_list(item)
+                else:
+                    new_list += [item]
+            return new_list
+
+        data = unpack_list(data)
+        success = [d for d in data if not isinstance(d, NodeFailedException)]
+        
+        if not success:
+            failed = [str(d) for d in data if isinstance(d, NodeFailedException)]
+            raise RuntimeError(f"Failed to data. Reason: {failed}")
+        try:
+            for i in range(len(success)):
+                if not success[i].name or success[i].name is None:
+                    success[i].name = "data"
+            merged_dataset = xr.merge(success)
+        except:
+            print(success)
+            raise RuntimeError("oh no")
+
+        data = merged_dataset[success[0].name]
+
+        r = request['self']
+        indexers = r['indexers']
+        slices = indexers_to_slices(indexers)
+        section = data.sel(slices)
+        section = exclusive_indexing(section, indexers)
+
+        # print(data)
+        return section

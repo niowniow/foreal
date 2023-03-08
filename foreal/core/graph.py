@@ -27,9 +27,7 @@ from dask.delayed import Delayed
 from dask.optimization import cull, fuse, inline, inline_functions
 
 from foreal.config import get_setting, setting_exists
-from foreal.convenience import NestedFrozenDict, dict_update
-
-KEY_SEP = "+"
+from foreal.convenience import NestedFrozenDict, dict_update, base_name, KEY_SEP
 
 
 class NodeFailedException(Exception):
@@ -86,10 +84,6 @@ def it(x, fail_mode=None):
         return dask.delayed(FailSafeWrapper(x))
     else:
         return dask.delayed(x)
-
-
-def base_name(name):
-    return name.split(KEY_SEP)[0]
 
 
 def update_key_in_config(request, old_key, new_key):
@@ -297,6 +291,8 @@ class Node(object):
     #     # TODO:
     #     raise NotImplementedError()
 
+def generate_clone_key(current_node_name,to_clone_key,clone_id):
+    return base_name(to_clone_key) + KEY_SEP + tokenize([current_node_name, to_clone_key, "foreal_clone", clone_id])
 
 # @profile
 def configuration(
@@ -306,6 +302,7 @@ def configuration(
     default_merge=None,
     optimize_graph=True,
     dependants=None,
+    clone_instead_merge=True,
 ):
     """Configures each node of the graph by propagating the request from outputs
     to inputs. Each node checks if it can fulfil the request and what it needs to fulfil
@@ -351,7 +348,8 @@ def configuration(
     # create a deepcopy, otherwise we might overwrite requests and falsify its usage outside of this function
     # request = deepcopy(request)
     if isinstance(request, list):
-        request = [NestedFrozenDict(r) for r in request if r]
+        # request = [NestedFrozenDict(r) for r in request if r]
+        request = [r for r in request if r]
         if len(request) != len(work):
             raise RuntimeError(
                 "When passing multiple request items "
@@ -362,7 +360,7 @@ def configuration(
         # For each output node different request has been provided
         requests = {work[i]: [request[i]] for i in range(len(request))}
     else:
-        request = NestedFrozenDict(request)
+        # request = NestedFrozenDict(request)
         # Every output node receives the same request
         requests = {k: [request] for k in work}
 
@@ -414,9 +412,9 @@ def configuration(
                             argument_is_node = ain
             # Check if we get a node of type Node class
             if argument_is_node is not None:
-                # current_requests = [r for r in requests[k] if r]                    # get all requests belonging to this node
-                # current_requests = deepcopy(requests[k])
-                current_requests = [NestedFrozenDict(r) for r in requests[k] if r]
+                # Yes, we've got a node class so we can use it's configure function
+                # current_requests = [NestedFrozenDict(r) for r in requests[k] if r]
+                current_requests = [r for r in requests[k] if r]
                 new_request = dsk_dict[k][argument_is_node].__self__.configure(
                     current_requests
                 )  # Call the class configuration function
@@ -424,14 +422,14 @@ def configuration(
                     new_request = [new_request]
                 # convert back to dicts (here we are allowed to modify it)
                 new_request = [dict(r) for r in new_request]
-            else:  # We didn't get a Node class so there is no
-                # custom configuration function: pass through
+            else:
+                # We didn't get a Node class so there is no
+                # custom configuration function: pass through or use default_merge
                 if len(requests[k]) > 1:
                     if callable(default_merge):
                         # current_requests = deepcopy(requests[k])
-                        current_requests = [
-                            NestedFrozenDict(r) for r in requests[k] if r
-                        ]
+                        current_requests = [r for r in requests[k] if r]
+                        # current_requests = [NestedFrozenDict(r) for r in requests[k] if r]
                         new_request = default_merge(current_requests)
                         if not isinstance(new_request, list):
                             new_request = [new_request]
@@ -486,7 +484,16 @@ def configuration(
             if len(dsk_dict[k]) > 1:
                 k_in_keys = deepcopy(dsk_dict[k][1])  # [1] equals in_keys in dict
             clone_dependencies = new_request
+
+            # check if any of our current dependencies already has to fulfil a request
+            # since the request's might collide we should just duplicate it
             clone = False
+            if clone_instead_merge:
+                for d in current_deps:
+                    if len(requests.get(d, [])) > 0:
+                        clone = True
+                        k_in_keys = []
+
             if (
                 new_request[0] is not None
                 and "clone_dependencies" in new_request[0]
@@ -503,7 +510,8 @@ def configuration(
                 and new_request[0]["requires_request"]
             ):
                 del new_request[0]["requires_request"]
-                input_requests[k] = NestedFrozenDict(new_request[0])
+                # input_requests[k] = NestedFrozenDict(new_request[0])
+                input_requests[k] = new_request[0]
 
             # all_deps = get_all_dependencies()
 
@@ -539,20 +547,22 @@ def configuration(
                             if to_clone_key is None:
                                 pre_in_keys.append(None)
                             else:
-                                pre_in_keys.append(
-                                    base_name(to_clone_key)
-                                    + KEY_SEP
-                                    + tokenize([to_clone_key, "foreal_clone", clone_id])
-                                )
+                                # pre_in_keys.append(
+                                #     base_name(to_clone_key)
+                                #     + KEY_SEP
+                                #     + tokenize([to_clone_key, "foreal_clone", clone_id])
+                                # )
+                                pre_in_keys.append(generate_clone_key(k,to_clone_key,clone_id))
                         else:
                             if to_clone_key is None:
                                 k_in_keys.append(None)
                             else:
-                                k_in_keys.append(
-                                    base_name(to_clone_key)
-                                    + KEY_SEP
-                                    + tokenize([to_clone_key, "foreal_clone", clone_id])
-                                )
+                                # k_in_keys.append(
+                                #     base_name(to_clone_key)
+                                #     + KEY_SEP
+                                #     + tokenize([to_clone_key, "foreal_clone", clone_id])
+                                # )
+                                k_in_keys.append(generate_clone_key(k,to_clone_key,clone_id))
 
                     if insert_predecessor:
                         dsk_dict[pre_k][1] = pre_in_keys
@@ -568,19 +578,21 @@ def configuration(
 
                     if clone:
                         clone_work = [d]
-                        d = (
-                            base_name(d)
-                            + KEY_SEP
-                            + tokenize([d, "foreal_clone", clone_id])
-                        )
+                        # d = (
+                        #     base_name(d)
+                        #     + KEY_SEP
+                        #     + tokenize([d, "foreal_clone", clone_id])
+                        # )
+                        d = generate_clone_key(k,d,clone_id)
                         while clone_work:
                             new_clone_work = []
                             for cd in clone_work:
-                                clone_d = (
-                                    base_name(cd)
-                                    + KEY_SEP
-                                    + tokenize([cd, "foreal_clone", clone_id])
-                                )
+                                # clone_d = (
+                                #     base_name(cd)
+                                #     + KEY_SEP
+                                #     + tokenize([cd, "foreal_clone", clone_id])
+                                # )
+                                clone_d = generate_clone_key(k,cd,clone_id)
 
                                 # update_key_in_config(request,cd,clone_d)
                                 # TODO: do we need to reset the dask_key_name of each
@@ -596,13 +608,14 @@ def configuration(
                                     if to_clone_key is None:
                                         cd_in_keys.append(None)
                                     else:
-                                        cd_in_keys.append(
-                                            base_name(to_clone_key)
-                                            + KEY_SEP
-                                            + tokenize(
-                                                [to_clone_key, "foreal_clone", clone_id]
-                                            )
-                                        )
+                                        # cd_in_keys.append(
+                                        #     base_name(to_clone_key)
+                                        #     + KEY_SEP
+                                        #     + tokenize(
+                                        #         [to_clone_key, "foreal_clone", clone_id]
+                                        #     )
+                                        # )
+                                        cd_in_keys.append(generate_clone_key(k,to_clone_key,clone_id))
                                 if len(cd_in_keys) == 1:
                                     cd_in_keys = cd_in_keys[0]
                                 nd = list(cloned_cd_node)
@@ -615,7 +628,7 @@ def configuration(
 
                     # determine what needs to be removed
                     if not insert_predecessor:
-                        # we are not going to remove anything if we inserted a node before current node k
+                        # we are not going to remove anything if we inserted a predecessor node before current node k
                         # we are also not updating the requests of dependencies of the original node k
                         # since it will be done in the next interaction by configuring the inserted predecessor
 
@@ -624,10 +637,13 @@ def configuration(
                             to_be_removed = remove[k]
                         if request is None:
                             to_be_removed = True
-                        elif "remove_dependencies" in request:
+                        if "remove_dependencies" in request:
                             to_be_removed = request["remove_dependencies"]
                             del request["remove_dependencies"]
-                        elif request.get("remove_dependency", {}).get(
+
+                        # TODO: so far this doesn't allow to clone dependencies and delete only one of them
+                        #       it might be irrelevant.
+                        if request.get("remove_dependency", {}).get(
                             base_name(d), False
                         ):
                             to_be_removed = True
@@ -637,10 +653,12 @@ def configuration(
                             # clean up if an empty dict still exists
                             del request["remove_dependency"]
                         if d in requests:
-                            requests[d] += [request]
+                            if not to_be_removed:
+                                requests[d] += [request]
                             remove[d] = remove[d] and to_be_removed
                         else:
-                            requests[d] = [request]
+                            if not to_be_removed:
+                                requests[d] = [request]
                             # if we received None
                             remove[d] = to_be_removed
 
@@ -657,6 +675,8 @@ def configuration(
                             new_work[d] = True
             dsk_k = list(dsk_dict[k])
             if k_in_keys is not None:
+                if len(k_in_keys) == 1:
+                    k_in_keys = k_in_keys[0]
                 dsk_k[1] = k_in_keys
             dsk_dict[k] = tuple(dsk_k)
 
@@ -740,7 +760,7 @@ def configuration(
     return collection
 
 
-def optimize(delayed, keys=None, dask_optimize=True):
+def optimize(delayed, keys=None, dask_optimize=False):
     """Optimizes the graph after configuration"""
 
     # TODO: Why is this necessary?

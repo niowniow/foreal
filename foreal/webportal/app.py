@@ -14,7 +14,14 @@ class WebportalPage:
 
 
 def create_webportal(
-    taskgraphs, branding=None, introduction=None, processing=None, dashboard=None
+    taskgraphs,
+    branding=None,
+    introduction=None,
+    processing=None,
+    dashboard=None,
+    introduction_kwargs=None,
+    processing_kwargs=None,
+    dashboard_kwargs=None,
 ):
     """Create a webportal based on a foreal task graph.
 
@@ -56,9 +63,22 @@ def create_webportal(
     if dashboard is None:
         from .pages.dashboard import DashboardPage as dashboard
 
-    shared.config["introduction"] = introduction(app=app, taskgraphs=taskgraphs)
-    shared.config["processing"] = processing(app=app, taskgraphs=taskgraphs)
-    shared.config["dashboard"] = dashboard(app=app, taskgraphs=taskgraphs)
+    if introduction_kwargs is None:
+        introduction_kwargs = {}
+    if processing_kwargs is None:
+        processing_kwargs = {}
+    if dashboard_kwargs is None:
+        dashboard_kwargs = {}
+
+    shared.config["introduction"] = introduction(
+        app=app, taskgraphs=taskgraphs, **introduction_kwargs
+    )
+    shared.config["processing"] = processing(
+        app=app, taskgraphs=taskgraphs, **processing_kwargs
+    )
+    shared.config["dashboard"] = dashboard(
+        app=app, taskgraphs=taskgraphs, **dashboard_kwargs
+    )
 
     nav_items = [
         dbc.NavItem(dbc.NavLink("Info", href="/")),

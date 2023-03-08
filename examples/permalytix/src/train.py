@@ -19,8 +19,11 @@ from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 
 import foreal
-from foreal.apps.annotations import (requests_from_file, requests_to_file,
-                                     to_formatted_json)
+from foreal.apps.annotations import (
+    requests_from_file,
+    requests_to_file,
+    to_formatted_json,
+)
 from foreal.apps.models import ModelWrapperGenerator, get_segments
 from foreal.config import get_global_config, set_setting
 from foreal.convenience import dict_update, to_datetime
@@ -241,6 +244,8 @@ test_dataset = ForealDatasetHash.join([fdata_set, fannotation_set])
 # they should be a tuple of xarray data and annotation map
 print(train_dataset[0])
 print(train_dataset[1])
+
+
 # the transform is used during dataset loading
 # it can be adapted based on the data augmenation needed.
 def transform(x):
@@ -307,7 +312,6 @@ criterion = torch.nn.BCEWithLogitsLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
 for epoch in range(2):  # loop over the dataset multiple times
-
     running_loss = 0.0
     for i, data in enumerate(trainloader, 0):
         # get the inputs; data is a list of [inputs, labels]

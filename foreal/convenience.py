@@ -26,12 +26,20 @@ import numpy as np
 import pandas as pd
 from compress_pickle import dump, load
 from dask.core import flatten, get_dependencies
+import dask
 from flask import g
+
 # # readonly class with custom get_attr, which returns a read-only class of it if its a dict
 from frozendict import frozendict
 
 import foreal
 from foreal.config import get_setting, set_setting, setting_exists
+
+KEY_SEP = "+"
+
+
+def base_name(name):
+    return name.split(KEY_SEP)[0]
 
 
 class NestedFrozenDict(frozendict):
@@ -54,6 +62,41 @@ class use_delayed:
 
     def __exit__(self, type, value, traceback):
         set_setting("use_delayed", self.prev)
+
+
+class use_probe:
+    def __init__(self, request):
+        self.prev = None
+        self.request = request
+        pass
+
+    def __enter__(self):
+        if setting_exists("probe_request"):
+            self.prev = get_setting("probe_request")
+        set_setting("probe_request", self.request)
+
+    def __exit__(self, type, value, traceback):
+        set_setting("probe_request", self.prev)
+
+
+def probe(graph, request=None, print_result=True, return_only_result=True):
+    if request is None:
+        request = get_setting("probe_request")
+        if request is None:
+            raise RuntimeError(
+                "foreal.probe requires a request or use it within a `with foreal.use_probe({...}):` statement"
+            )
+
+    configured_graph = foreal.core.configuration(graph, request)
+    result = dask.compute(configured_graph)[0]
+
+    if print_result:
+        print(result)
+
+    if return_only_result:
+        return result
+    else:
+        return result, configured_graph
 
 
 def indexers_to_slices(indexers):
@@ -165,7 +208,7 @@ def is_datetime(x):
     return pd.api.types.is_datetime64_any_dtype(x)
 
 
-def to_datetime_cond(x, condition=True, **kwargs):
+def to_datetime_conditional(x, condition=True, **kwargs):
     # converts x to datetime if condition is true or the object in condition is datetime or timedelta
     if not isinstance(condition, bool):
         condition = is_datetime(condition) or isinstance(condition, pd.Timedelta)
@@ -184,7 +227,6 @@ def dict_update(base, update, convert_nestedfrozen=False):
         )
 
     for key in update:
-
         if isinstance(base.get(key), dict) and isinstance(update[key], dict):
             if convert_nestedfrozen:
                 base[key] = dict(base[key])
@@ -210,7 +252,8 @@ def compute(graph, request):
         any: The result of the processed task graph
     """
     configured_graph = foreal.core.configuration(graph, request)
-    return configured_graph.compute()
+    computed_result = dask.compute(configured_graph)
+    return computed_result[0]
 
 
 def make_json_parsable(requests):
@@ -264,19 +307,55 @@ def extract_node_from_graph(taskgraph, node_dask_key_name):
     return None
 
 
-# from dask.delayed import Delayed
+from dask.delayed import Delayed
+
 # from dask.base import is_dask_collection
 # from dask.delayed import unpack_collections
 # from dask.highlevelgraph import HighLevelGraph
 
 
-def extract_subgraph(taskgraph, key):
-    raise NotImplementedError()
+def extract_subgraphs(taskgraph, keys, match_base_name=False):
+    if not isinstance(taskgraph, list):
+        taskgraph = [taskgraph]
+
+    extracted_graph, ck = dask.base._extract_graph_and_keys(taskgraph)
+    if match_base_name:
+        configured_graph_keys = list(extracted_graph.keys())
+        new_keys = []
+        for k in configured_graph_keys:
+            for sk in keys:
+                if base_name(sk) == base_name(k):
+                    new_keys += [k]
+        keys = new_keys
+    return Delayed(keys, extracted_graph)
 
 
-#     task, collections = unpack_collections(taskgraph)
-#     layer = {key: task}
-#     print(collections)
-#     print(task)
-#     graph = HighLevelGraph.from_collections(key, layer, dependencies=collections)
-#     return Delayed(key, graph)
+def get_cytoscape_elements(graph):
+    if not isinstance(graph, list):
+        graph = [graph]
+    dsk, dsk_keys = dask.base._extract_graph_and_keys(graph)
+    work = list(set(flatten(dsk_keys)))
+    dsk_dict = dict(dsk)
+    # dsk_dict = dsk
+    nodes = []
+    edges = []
+
+    roots = ["#" + k for k in work]
+    while work:
+        new_work = {}
+        for k in work:
+            nodes.append({"data": {"id": k, "label": k}})
+
+            current_deps = get_dependencies(dsk_dict, k, as_list=True)
+
+            for dep in current_deps:
+                edges.append({"data": {"source": dep, "target": k}})
+
+                if dep not in work:
+                    new_work[dep] = True
+
+        work = new_work
+
+    elements = nodes + edges
+
+    return elements, roots

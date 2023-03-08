@@ -1,4 +1,4 @@
-#import numpy as np
+# import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -57,7 +57,6 @@ def get_class_mapping(classes, class_rename=None, misc_class="misc", tags_name="
         x_out = np.zeros((len(classes),))
         for e in x:
             for t in e[tags_name]:
-
                 if class_rename is not None:
                     t = class_rename[t]
                 if t not in classes:
@@ -125,16 +124,16 @@ def get_taskgraphs(classes=None):
 [pytorch tutorial](https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html"""
     model = Net(len(classes))
 
-    """Our model's task is to classifies the "classification target" (for example a 
-time segment). It is not bounded to only use the classification target as input
-it may use alternative sources. We call this the "classification scope".
+    """Our model's task is to classify the "classification target" (for example to answer
+what happend during a specified time segment). The model may use any kind
+of data sources to accomplish this goal. We call this the "classification scope".
 In this case we use 
-    - 90 seconds of data before the end of the classification target (no matter how 
+    - 90 seconds of seismic data before the end of the classification target (no matter how 
     long the target actually is)
     - Three channels "EHZ",'EHE','EHN'
     - One station 'MH36
-Since we need to know the end of the classification target, we create a function
-that dynamically computes the scope based on the target request."""
+Since we need to know the end of the classification __target__ to compute the classification
+__scope__, we create a function that dynamically computes the scope based on the target request."""
 
     def classification_scope(request):
         rs = request["self"]

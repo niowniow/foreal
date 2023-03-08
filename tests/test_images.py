@@ -16,7 +16,6 @@ config = {"indexers": {"time": {"start": start_time, "stop": end_time}}}
 
 
 def test_permasense_image_filenames():
-
     permasense_vault = get_setting("permasense_vault_dir")
     data_path = Path(permasense_vault) / "datasets/MHDSLR/"
 

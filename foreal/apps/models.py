@@ -44,10 +44,12 @@ def get_segments(
             segment_start = 0
             segment_end = len(dataset_scope[dim])
         else:
-            segment_start = foreal.to_datetime_cond(
+            segment_start = foreal.to_datetime_conditional(
                 dataset_scope[dim]["start"], dims[dim]
             )
-            segment_end = foreal.to_datetime_cond(dataset_scope[dim]["stop"], dims[dim])
+            segment_end = foreal.to_datetime_conditional(
+                dataset_scope[dim]["stop"], dims[dim]
+            )
 
             if mode[dim] == "overlap":
                 # TODO: add options for closed and open intervals
@@ -242,11 +244,14 @@ class ModelWrapperGenerator(Node):
         else:
 
             def get_value(attr_name):
-                # decide if we use the attribute from provided in the request or
+                # decide if we use the attribute provided in the request or
                 # from a callback provided at initialization
+
                 if rs.get(attr_name, None) is None:
-                    if getattr(self, attr_name) is not None:
-                        value = getattr(self, attr_name)(request)
+                    # there is no attribute in the request, check for callback
+                    callback = getattr(self, attr_name)
+                    if callback is not None and callable(callback):
+                        value = callback(request)
                     else:
                         RuntimeError("No valid classification_scope provided")
                 else:
