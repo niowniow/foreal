@@ -42,6 +42,10 @@ user_dir: /path/to/usr/dir
 arclink: {"user":"theusername", "password":"topsecretpw", "url":"http://arclink.server.address"}
 ```
 
+## Getting Started
+
+Check out our [getting started section](https://niowniow.github.io/foreal/get_started/) or the examples folder in this repository.
+
 ## Documentation
 The documentation is created with Markdown and pydoc-markdown. From within the `docs` folder, the documentation can compiled by invoking `novella` or it can be served using `novella --serve`.
 

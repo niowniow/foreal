@@ -1,6 +1,6 @@
 # foReal Examples
 
-After installing the framework we can run two examples for one set of environmental data. The examples explain how to run the integrated webport and how to create a dataset for machine learning.
+After installing the framework we can run two examples for one set of environmental data. The examples explain how to run the integrated webportal and how to create a dataset for machine learning.
 Currently all explanations about how to use foreal are embedded as comments in the respective files.
 
 To run the examples go to the example directory, e.g. `cd examples/permalytix`
@@ -19,7 +19,7 @@ The example trains a simple pytorch neural network. We first need to install add
 conda install -y scikit-learn pytorch torchvision torchaudio cudatoolkit=11.3 ignite numpy==1.22 -c pytorch
 ```
 
-The relevant files are [train.py](https://github.com/niowniow/foreal/blob/main/examples/permalytix/src/train.py) and [classification.py](https://github.com/niowniow/foreal/blob/main/examples/permalytics/taskgraphs/src/classification.py)
+The relevant files are [train.py](https://github.com/niowniow/foreal/blob/main/examples/permalytix/src/train.py) and [classification.py](https://github.com/niowniow/foreal/blob/main/examples/permalytix/src/taskgraphs/classification.py)
 
 Then we can run the example
 ```
