@@ -110,7 +110,7 @@
 <h4 id="compute">compute</h4>
 <pre><code class="language-python">def compute(graph, request)
 </code></pre>
-<p><a href="https://github.com/niowniow/foreal/blob/main/docs/../foreal/convenience.py#L200">[view_source]</a></p>
+<p><a href="https://github.com/niowniow/foreal/blob/main/docs/../foreal/convenience.py#L242">[view_source]</a></p>
 <p>Configures the given task graph <code>graph</code> using
 foreal.core.configuration and runs the task graph
 using dask.compute</p>
@@ -131,9 +131,10 @@ using dask.compute</p>
                   keys=None,
                   default_merge=None,
                   optimize_graph=True,
-                  dependants=None)
+                  dependants=None,
+                  clone_instead_merge=True)
 </code></pre>
-<p><a href="https://github.com/niowniow/foreal/blob/main/docs/../foreal/core/graph.py#L302">[view_source]</a></p>
+<p><a href="https://github.com/niowniow/foreal/blob/main/docs/../foreal/core/graph.py#L298">[view_source]</a></p>
 <p>Configures each node of the graph by propagating the request from outputs
 to inputs. Each node checks if it can fulfil the request and what it needs to fulfil
 the request. If a node requires additional configurations to fulfil the request it
@@ -162,13 +163,13 @@ See also Node.configure()</p>
 <h2 id="class-node">Class Node</h2>
 <pre><code class="language-python">class Node(object)
 </code></pre>
-<p><a href="https://github.com/niowniow/foreal/blob/main/docs/../foreal/core/graph.py#L104">[view_source]</a></p>
+<p><a href="https://github.com/niowniow/foreal/blob/main/docs/../foreal/core/graph.py#L98">[view_source]</a></p>
 <p><a id="foreal.core.graph.Node.merge_config"></a></p>
 <p><a id="pydoc:foreal.core.graph.Node.merge_config"></a></p>
 <h4 id="merge_config">merge_config</h4>
 <pre><code class="language-python">def merge_config(request)
 </code></pre>
-<p><a href="https://github.com/niowniow/foreal/blob/main/docs/../foreal/core/graph.py#L117">[view_source]</a></p>
+<p><a href="https://github.com/niowniow/foreal/blob/main/docs/../foreal/core/graph.py#L111">[view_source]</a></p>
 <p>Each request contains configuration which may apply to different
 node instances. This function collects all information that apply to <em>this</em>
 node (including it's preset configs) and adds a <code>self</code> keyword to the request.</p>
@@ -185,7 +186,7 @@ node (including it's preset configs) and adds a <code>self</code> keyword to the
 <h4 id="configure">configure</h4>
 <pre><code class="language-python">def configure(requests)
 </code></pre>
-<p><a href="https://github.com/niowniow/foreal/blob/main/docs/../foreal/core/graph.py#L193">[view_source]</a></p>
+<p><a href="https://github.com/niowniow/foreal/blob/main/docs/../foreal/core/graph.py#L187">[view_source]</a></p>
 <p>Before a task graph is executed each node is configured.
 The request is propagated from the end to the beginning
 of the DAG and each nodes "configure" routine is called.
