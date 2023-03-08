@@ -11,6 +11,7 @@ from foreal.core.datasets import Dataset
 from foreal.core.persist import HashPersister
 from foreal.processing import Spectrogram
 
+# If you are here and lost, go to the get_taskgraph function and read the comments :)
 
 def to_db(x, min_value=1e-20, reference=1.0):
     value_db = 10.0 * np.log10(np.maximum(min_value, x))
@@ -101,10 +102,18 @@ class Net(nn.Module):
 
 
 def get_taskgraphs(classes=None):
+    
+    # We will develop a task graph that allows us to use a model for seismic classification.
+    # Note that we do not perform any computation in this function. Everything is hypothetical.
+    # The computation takes place outside of this function using the taskgraph generated here.
+    # Also we first create the building blocks of our task graph and then chain them together at
+    # the end of the function.
+    
+    # First load the classes which we would like to use for classification
     if classes is None:
         classes = requests_from_file("./data/matterhorn_classes.jsonl")[0]
 
-    # Create an instance of a seismic portal to load the data from arclink.ethz.ch
+    # Create an instance of a seismic portal to load the data from eida.ethz.ch
     seismic_inst = SeismicPortal(
         use_arclink={"url": "http://eida.ethz.ch"},
         channel=["EHZ"],
@@ -153,10 +162,10 @@ __scope__, we create a function that dynamically computes the scope based on the
     """The model can however only compute with a specific input size at once.
 The classification scope might be larger (and is larger in our case). Therefore we slice
 the classification scope into smaller segments, which can be processed by our model.
-Then we need to take care of combining the model outputs for each slice afterwards.
-Since the segment_slice and segment_stride do not depend on the classification target
-we can just use dicts to describe them instead of a function. They can also be a 
-function
+Note: we need to take care combining the model outputs for each slice afterwards.
+In this case the segment_slice and segment_stride do not depend on the classification target,
+thus we can just use dicts to describe them instead of a function. They could also be a 
+function.
     """
     # it should subdivide the input into 30 seconds slices ...
     segment_slice = {"time": foreal.to_timedelta(30, "seconds")}
@@ -177,6 +186,11 @@ function
     # and all segments with an overlap with the classification scope will be used
     mode = {"time": "overlap"}
 
+    # We have just defined what kind of data the model requires. Just trust me that
+    # these values work out for this specific model. It needs to be figured out for
+    # each model.
+    # Now we create a model wrapper. This takes the predefined model and adds the
+    # information about which kind of data the model needs. 
     modelwrapper_inst = ModelWrapperGenerator(
         model,
         batch_size=1,
@@ -198,23 +212,29 @@ We can use these in modern machine learning frameworks if we collect them in a d
         )
     )
 
-    """We will create for annotations way to load annotations for each segment
+    """We will create a way to load annotations for each segment. These annotations
+are created dynamically by detecting the overlap of the data segment with the
+annotation set.
     """
 
     # annotations are a list of requests with a tag component
     annotations_filename = Path("./data") / "matterhorn_annotations.jsonl"
     # the schema defines which components the BoundingBoxAnnotation class should use
-    # to compute an overlap between a request and the annotations
+    # to compute an overlap between a request and the annotations.
+    # Here we compare on the station and time axis.
     schema = {
         "indexers": {"time": "datetimeInterval", "station": "string"},
     }
     bba = BoundingBoxAnnotation(annotations_filename, schema=schema)
 
-    # we will syncronize the `dataset` and `annotation_dataset` later
-    # therefore we do not add a persist_dir
+    # And like for data before, we create a dataset that holds the annotations.
+    # We will syncronize the `dataset` and `annotation_dataset` later
     annotation_dataset = Dataset()
 
-    """Additionally we introduce
+    """Additionally we introduce a persisting mechanism that stores the datasets
+    on disk. The hashpersister class stores each segment on disk and thus allows
+    to quickly reload the data instead of recomputing the spectrogram segments 
+    every trainings run.
     """
     hashpersist_dir = (
         persist_dir / f"datasets/{dataset_name}_dataset_hashpersist.foreal"
@@ -225,6 +245,8 @@ We can use these in modern machine learning frameworks if we collect them in a d
     )
     annotationset_hashpersist = HashPersister(hashpersist_dir)
 
+    # Now it's time to define the actual task graph. Here we chain together the
+    # different building blocks we just created
     d = {}
     with foreal.use_delayed():
         ######### SEISMIC WAVEFORMS #############
