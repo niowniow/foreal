@@ -6,7 +6,7 @@ Currently all explanations about how to use foreal are embedded as comments in t
 To run the examples go to the example directory, e.g. `cd examples/permalytix`
 
 ## Webportal
-The relevant files for the webportal are [webportal.py](https://github.com/niowniow/foreal/blob/main/examples/permalytix/src/webportal.py) and [simple.py](https://github.com/niowniow/foreal/blob/main/examples/permalytics/src/taskgraphs/simple.py). The following command sets up and runs the webportal
+The relevant files for the webportal are [webportal.py](https://github.com/niowniow/foreal/blob/main/examples/permalytix/src/webportal.py) and [simple.py](https://github.com/niowniow/foreal/blob/main/examples/permalytix/src/taskgraphs/simple.py). The following command sets up and runs the webportal
 
 ```
 python -m src.webportal

@@ -6,14 +6,8 @@ from foreal.apps.seismic import SeismicPortal
 from foreal.processing import Spectrogram
 
 
-def to_db(x, min_value=1e-20, reference=1.0):
-    value_db = 10.0 * np.log10(np.maximum(min_value, x))
-    value_db -= 10.0 * np.log10(np.maximum(min_value, reference))
-    return value_db
-
-
 def get_taskgraphs():
-    # Create an instance of a seismic portal to load the data from arclink.ethz.ch
+    # Create an instance of a seismic portal to load the data from eida.ethz.ch
     seismic_inst = SeismicPortal(
         use_arclink={"url": "http://eida.ethz.ch"},
         channel=["EHZ"],
@@ -34,15 +28,14 @@ def get_taskgraphs():
     # as distinct taskgraphs
     d = {}
 
-    """
-foreal has two modes: either the foreal nodes are processed immediatly or delayed.
-immediate processing will generate the results when we call the node e.g.
-`result = seismic_inst(request={"indexers": {"time":{"start":"2022-06-05T11:20:00","stop":"2022-06-05T11:40:00"}}})`
-In contrast, delayed processing will create a taskgraph which will not be computed yet
-It just creates the structure of the desired processing. Please also
-refer to dask.delayed documentation: https://docs.dask.org/en/stable/delayed.html"""
+    # foreal nodes are processed in one of two modes: either the foreal nodes are processed immediatly or delayed.
+    # immediate processing will generate the results when we call the node e.g.
+    # `result = seismic_inst(request={"indexers": {"time":{"start":"2022-06-05T11:20:00","stop":"2022-06-05T11:40:00"}}})`
+    # In contrast, delayed processing will create a taskgraph which will not be computed yet
+    # It just creates the structure of the desired processing. Please also
+    # refer to dask.delayed documentation: https://docs.dask.org/en/stable/delayed.html
 
-    # By default each Node is immediate mode. To chain together our taskgraph we can
+    # By default each Node is in immediate mode. To chain together our taskgraph we can
     # use foreal.use_delayed(). all nodes within the block will be set to delayed mode
     with foreal.use_delayed():
         # now the call of seismic_inst creates a delayed object `seismic_node`.
@@ -55,3 +48,9 @@ refer to dask.delayed documentation: https://docs.dask.org/en/stable/delayed.htm
     d["default"] = spectrogram_db_node
 
     return d
+
+
+def to_db(x, min_value=1e-20, reference=1.0):
+    value_db = 10.0 * np.log10(np.maximum(min_value, x))
+    value_db -= 10.0 * np.log10(np.maximum(min_value, reference))
+    return value_db

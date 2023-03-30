@@ -22,12 +22,12 @@ from sqlite3 import InternalError
 import dask
 import numpy as np
 from dask.base import tokenize
-from dask.core import flatten, get_dependencies
+from dask.core import flatten, get_dependencies, reverse_dict
 from dask.delayed import Delayed
 from dask.optimization import cull, fuse, inline, inline_functions
 
 from foreal.config import get_setting, setting_exists
-from foreal.convenience import NestedFrozenDict, dict_update, base_name, KEY_SEP
+from foreal.convenience import KEY_SEP, NestedFrozenDict, base_name, dict_update
 
 
 class NodeFailedException(Exception):
@@ -291,8 +291,14 @@ class Node(object):
     #     # TODO:
     #     raise NotImplementedError()
 
-def generate_clone_key(current_node_name,to_clone_key,clone_id):
-    return base_name(to_clone_key) + KEY_SEP + tokenize([current_node_name, to_clone_key, "foreal_clone", clone_id])
+
+def generate_clone_key(current_node_name, to_clone_key, clone_id):
+    return (
+        base_name(to_clone_key)
+        + KEY_SEP
+        + tokenize([current_node_name, to_clone_key, "foreal_clone", clone_id])
+    )
+
 
 # @profile
 def configuration(
@@ -552,7 +558,9 @@ def configuration(
                                 #     + KEY_SEP
                                 #     + tokenize([to_clone_key, "foreal_clone", clone_id])
                                 # )
-                                pre_in_keys.append(generate_clone_key(k,to_clone_key,clone_id))
+                                pre_in_keys.append(
+                                    generate_clone_key(k, to_clone_key, clone_id)
+                                )
                         else:
                             if to_clone_key is None:
                                 k_in_keys.append(None)
@@ -562,7 +570,9 @@ def configuration(
                                 #     + KEY_SEP
                                 #     + tokenize([to_clone_key, "foreal_clone", clone_id])
                                 # )
-                                k_in_keys.append(generate_clone_key(k,to_clone_key,clone_id))
+                                k_in_keys.append(
+                                    generate_clone_key(k, to_clone_key, clone_id)
+                                )
 
                     if insert_predecessor:
                         dsk_dict[pre_k][1] = pre_in_keys
@@ -583,7 +593,7 @@ def configuration(
                         #     + KEY_SEP
                         #     + tokenize([d, "foreal_clone", clone_id])
                         # )
-                        d = generate_clone_key(k,d,clone_id)
+                        d = generate_clone_key(k, d, clone_id)
                         while clone_work:
                             new_clone_work = []
                             for cd in clone_work:
@@ -592,7 +602,7 @@ def configuration(
                                 #     + KEY_SEP
                                 #     + tokenize([cd, "foreal_clone", clone_id])
                                 # )
-                                clone_d = generate_clone_key(k,cd,clone_id)
+                                clone_d = generate_clone_key(k, cd, clone_id)
 
                                 # update_key_in_config(request,cd,clone_d)
                                 # TODO: do we need to reset the dask_key_name of each
@@ -615,7 +625,11 @@ def configuration(
                                         #         [to_clone_key, "foreal_clone", clone_id]
                                         #     )
                                         # )
-                                        cd_in_keys.append(generate_clone_key(k,to_clone_key,clone_id))
+                                        cd_in_keys.append(
+                                            generate_clone_key(
+                                                k, to_clone_key, clone_id
+                                            )
+                                        )
                                 if len(cd_in_keys) == 1:
                                     cd_in_keys = cd_in_keys[0]
                                 nd = list(cloned_cd_node)
@@ -748,16 +762,64 @@ def configuration(
     #    collection = Delayed(key=dsk_keys, dsk=collection)
 
     if len(in_keys) > 1:
-        collection = [Delayed(key=key, dsk=out) for key in in_keys]
+        # collection = [Delayed(key=key, dsk=out) for key in in_keys]
+        collection = Delayed(key=in_keys, dsk=out)
     else:
         collection = Delayed(key=in_keys[0], dsk=out)
         if isinstance(delayed, list):
             collection = [collection]
 
+    # if isinstance(delayed, list):
+    #     collection = [collection]
+
     if optimize_graph:
         collection = optimize(collection, keys)
     #
     return collection
+
+
+def dfs_order(dsk, keys=None, dask_optimize=False):
+    """performs a depth first search and orders the items accordingly"""
+
+    # if not isinstance(delayed, list):
+    #     collections = [delayed]
+    # else:
+    #     collections = delayed
+
+    # dsk, dsk_keys = dask.base._extract_graph_and_keys(collections)
+
+    # dsk_dict = {k: dsk[k] for k in dsk.keys()}
+    dsk_dict = dsk
+
+    dependencies = {k: get_dependencies(dsk, k) for k in dsk}
+    dependents = reverse_dict(dependencies)
+    root_nodes = {k for k, v in dependents.items() if not v}
+    keys = root_nodes
+
+    if not isinstance(keys, (list, set)):
+        keys = [keys]
+
+    work = list(set(flatten(keys)))
+
+    def dfs(k, dsk_dict, keyorder, idx):
+        current_deps = get_dependencies(dsk_dict, k, as_list=True)
+        for i, d in enumerate(current_deps):
+            if d not in keyorder:
+                keyorder, idx = dfs(d, dsk_dict, keyorder, idx)
+                keyorder[d] = idx
+                idx = idx + 1
+
+        return keyorder, idx
+
+    keyorder = {}
+    idx = 0
+    for k in work:
+        keyorder, idx = dfs(k, dsk_dict, keyorder, idx)
+        if k not in keyorder:
+            keyorder[k] = idx
+            idx += 1
+
+    return keyorder
 
 
 def optimize(delayed, keys=None, dask_optimize=False):
@@ -885,9 +947,11 @@ def optimize(delayed, keys=None, dask_optimize=False):
         out = optimize_functions(out, in_keys)
 
     if len(in_keys) > 1:
-        collection = [Delayed(key=key, dsk=out) for key in in_keys]
+        # collection = [Delayed(key=key, dsk=out) for key in in_keys]
+        collection = Delayed(key=in_keys, dsk=out)
     else:
         collection = Delayed(key=in_keys[0], dsk=out)
         if isinstance(delayed, list):
             collection = [collection]
+
     return collection

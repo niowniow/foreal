@@ -26,7 +26,6 @@ import numpy as np
 import pandas as pd
 from compress_pickle import dump, load
 from dask.core import flatten, get_dependencies
-import dask
 from flask import g
 
 # # readonly class with custom get_attr, which returns a read-only class of it if its a dict
@@ -79,7 +78,13 @@ class use_probe:
         set_setting("probe_request", self.prev)
 
 
-def probe(graph, request=None, print_result=True, return_only_result=True):
+def probe(
+    graph,
+    request=None,
+    print_result=True,
+    return_only_result=True,
+    optimize_graph=False,
+):
     if request is None:
         request = get_setting("probe_request")
         if request is None:
@@ -87,7 +92,9 @@ def probe(graph, request=None, print_result=True, return_only_result=True):
                 "foreal.probe requires a request or use it within a `with foreal.use_probe({...}):` statement"
             )
 
-    configured_graph = foreal.core.configuration(graph, request)
+    configured_graph = foreal.core.configuration(
+        graph, request, optimize_graph=optimize_graph
+    )
     result = dask.compute(configured_graph)[0]
 
     if print_result:
