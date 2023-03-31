@@ -22,6 +22,7 @@ def create_webportal(
     introduction_kwargs=None,
     processing_kwargs=None,
     dashboard_kwargs=None,
+    assets_folder="assets",
 ):
     """Create a webportal based on a foreal task graph.
 
@@ -46,7 +47,7 @@ def create_webportal(
 
     # this call will create our dash app in a shared global context which is avaiable
     # to all subpages
-    shared.init(branding["name"])
+    shared.init(branding["name"], assets_folder=assets_folder)
 
     app = shared.app
     server = app.server

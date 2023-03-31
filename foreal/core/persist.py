@@ -26,12 +26,12 @@ import xarray as xr
 import zarr
 from benedict import benedict
 from dask.utils import SerializableLock
+from rechunker import rechunk
 
 import foreal
 from foreal.convenience import dict_update, exclusive_indexing, indexers_to_slices
 from foreal.core import Node
 from foreal.core.graph import Node, NodeFailedException
-from rechunker import rechunk
 
 # from dask.distributed import wait
 
@@ -1295,8 +1295,10 @@ class ImmutablePersist(Node):
 import json
 import re
 import sys
+from multiprocessing import Manager
 from pathlib import Path
 from threading import Lock
+from typing import Callable
 
 import numcodecs
 import numpy as np
@@ -1310,8 +1312,6 @@ import foreal
 from foreal.convenience import read_pickle_with_store, to_pickle_with_store
 from foreal.core import Node
 from foreal.core.graph import NodeFailedException
-from typing import Callable
-from multiprocessing import Manager
 
 manager = Manager()
 
@@ -1329,8 +1329,9 @@ class HashPersister(Node):
         store,
         selected_keys=None,
         compression=None,
+        force_update=False,
     ):
-        super().__init__()
+        super().__init__(force_update=force_update)
         if isinstance(store, str) or isinstance(store, Path):
             store = zarr.DirectoryStore(store)
         self.store = store
@@ -1377,6 +1378,11 @@ class HashPersister(Node):
         # propagate the request_hash to the forward function
         request["self"]["request_hash"] = request_hash
 
+        # reload and rewrite the chunk if requested
+        if request["self"].get("force_update", False):
+            request["self"]["action"] = "store"
+            return request
+
         with self._mutex:
             # while holding the mutex, we need to check if the file exists
             if request_hash in self.store:
@@ -1418,8 +1424,8 @@ class HashPersister(Node):
                 request["self"]["request_hash"],
                 compression=self.compression,
             )
-            if isinstance(data,str):
-                raise RuntimeError(f'something wrong read {data}')
+            if isinstance(data, str):
+                raise RuntimeError(f"something wrong read {data}")
             return data
 
         if request["self"]["action"] == "store":
@@ -1441,8 +1447,8 @@ class HashPersister(Node):
                     #     compute=False,
                     #     consolidated=True,
                     # )
-                    if isinstance(data,str):
-                        raise RuntimeError(f'something wrong {data}')
+                    if isinstance(data, str):
+                        raise RuntimeError(f"something wrong {data}")
                     to_pickle_with_store(
                         self.store,
                         request["self"]["request_hash"],
@@ -1451,7 +1457,7 @@ class HashPersister(Node):
                     )
 
             except Exception as e:
-                print("error", e)
+                print("Error during hashpersister", repr(e))
             # finally:
             #     with self._mutex:
             #         # de-register this hash
@@ -1483,10 +1489,9 @@ def get_segments(
 
     dim_slices = []
     for dim in dims:
-        # if dataset_scope is None:
-        #     segment_start = 0
-        #     segment_end = ds.sizes[dim]
-        # else:
+        if dim not in dataset_scope:
+            continue
+
         size = dims[dim]
         _stride = stride.get(dim, size)
 
@@ -1579,6 +1584,7 @@ class ChunkPersister(Node):
         # segment_stride:dict|Callable[...,dict]=None,
         mode: str = "fit",
         ref: dict = None,
+        force_update=False,
     ):
         # if callable(classification_scope):
         #     self.classification_scope = classification_scope
@@ -1605,6 +1611,7 @@ class ChunkPersister(Node):
             # segment_stride=segment_stride,
             mode=mode,
             ref=ref,
+            force_update=force_update,
         )
 
         if isinstance(store, str) or isinstance(store, Path):
@@ -1672,6 +1679,7 @@ class ChunkPersister(Node):
             cloned_requests += [segment_request]
             cloned_hashpersister = HashPersister(
                 self.store,
+                force_update=rs.get("force_update", False),
             )
             cloned_hashpersister.dask_key_name = self.dask_key_name + "_hashpersister"
             cloned_hashpersisters += [cloned_hashpersister.forward]
@@ -1690,7 +1698,7 @@ class ChunkPersister(Node):
         def unpack_list(inputlist):
             new_list = []
             for item in inputlist:
-                if isinstance(item,list):
+                if isinstance(item, list):
                     new_list += unpack_list(item)
                 else:
                     new_list += [item]
@@ -1698,7 +1706,7 @@ class ChunkPersister(Node):
 
         data = unpack_list(data)
         success = [d for d in data if not isinstance(d, NodeFailedException)]
-        
+
         if not success:
             failed = [str(d) for d in data if isinstance(d, NodeFailedException)]
             raise RuntimeError(f"Failed to data. Reason: {failed}")
@@ -1713,8 +1721,8 @@ class ChunkPersister(Node):
 
         data = merged_dataset[success[0].name]
 
-        r = request['self']
-        indexers = r['indexers']
+        r = request["self"]
+        indexers = r["indexers"]
         slices = indexers_to_slices(indexers)
         section = data.sel(slices)
         section = exclusive_indexing(section, indexers)
