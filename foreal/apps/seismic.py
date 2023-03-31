@@ -99,7 +99,7 @@ def default_get_obspy_stream(
 ):
     start_time = request["indexers"]["time"]["start"]
     end_time = request["indexers"]["time"]["stop"]
-    network = request["network"]
+    networks = request["network"]
     stations = request["station"]
     channels = request["channel"]
     location = request["location"]
@@ -109,6 +109,8 @@ def default_get_obspy_stream(
         channels = [channels]
     if not isinstance(stations, list):
         stations = [stations]
+    if not isinstance(networks, list):
+        networks = [networks]
 
     if extension != "" and extension[0] != ".":
         extension = "." + extension
@@ -133,26 +135,27 @@ def default_get_obspy_stream(
 
         filenames = {}
 
-        for station in stations:
-            for channel in channels:
-                # Load either from store or from filename
-                # get the file relative to the store
-                filename = get_filename(
-                    network,
-                    station,
-                    location,
-                    channel,
-                    timerange[i],
-                    timerange[i] + block_duration,
-                    extension,
-                )
-                filenames[channel] = filename
-                try:
-                    st = obspy.read(io.BytesIO(store[str(filename)]))
-                except Exception as ex:
-                    print(f"SEISMIC SOURCE Exception: {ex}")  # pass
-                    st = obspy.Stream()
-                st_list += st
+        for network in networks:
+            for station in stations:
+                for channel in channels:
+                    # Load either from store or from filename
+                    # get the file relative to the store
+                    filename = get_filename(
+                        network,
+                        station,
+                        location,
+                        channel,
+                        timerange[i],
+                        timerange[i] + block_duration,
+                        extension,
+                    )
+                    filenames[channel] = filename
+                    try:
+                        st = obspy.read(io.BytesIO(store[str(filename)]))
+                    except Exception as ex:
+                        print(f"SEISMIC SOURCE Exception: {ex}")  # pass
+                        st = obspy.Stream()
+                    st_list += st
 
         stream_h = st_list.merge(method=0, fill_value=fill)
         segment_h = stream_h
