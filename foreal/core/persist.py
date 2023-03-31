@@ -1679,9 +1679,19 @@ class ChunkPersister(Node):
             cloned_requests += [segment_request]
             cloned_hashpersister = HashPersister(
                 self.store,
-                force_update=rs.get("force_update", False),
             )
             cloned_hashpersister.dask_key_name = self.dask_key_name + "_hashpersister"
+            dict_update(
+                segment_request,
+                {
+                    "config": {
+                        "keys": {
+                            self.dask_key_name
+                            + "_hashpersister": {"force_update": True}
+                        }
+                    }
+                },
+            )
             cloned_hashpersisters += [cloned_hashpersister.forward]
 
         # Insert predecessor
