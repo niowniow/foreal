@@ -369,7 +369,7 @@ class SeismicPortal(Node):
                 location = [location]
             da = da.assign_coords({"location": location})
 
-            da = da.astype(np.float, casting="safe")
+            da = da.astype(float, casting="safe")
             x = da
 
             # TODO: same check for obspy

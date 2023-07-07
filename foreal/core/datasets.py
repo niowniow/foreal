@@ -20,6 +20,7 @@ import numpy as np
 import xarray as xr
 import zarr
 from tqdm import tqdm
+from collections.abc import Iterable
 
 import foreal
 from foreal.convenience import (
@@ -35,47 +36,38 @@ from foreal.core.graph import NodeFailedException
 
 
 class Dataset(Node):
-    def __init__(self, requests=None, subset="base", record=False, persist_store=None):
-        super().__init__(record=record, subset=subset)
+    def __init__(self, requests=None, record=False, persist_store=None):
+        super().__init__(record=record)
 
-        if requests is None or subset is None:
-            self.requests = {}
-        else:
-            self.requests = {subset: requests}
+        # TODO: clarify precedence of `requests` parameter over persist_store
+        self.requests = requests
         self.persist_store = persist_store
         if self.persist_store is not None:
-            for subset in self.persist_store:
-                self.requests[subset] = requests_from_store(self.persist_store, subset)
+            if is_in_store(self.persist_store, "base"):
+                self.requests = requests_from_store(self.persist_store, "base")
 
     def __dask_tokenize__(self):
         return (Dataset,)
 
     def __len__(self):
-        return len(self.requests.get(self.config["subset"], []))
+        if self.requests is None:
+            return 0
+        return len(self.requests)
 
-    def length(self, subset=None):
-        if subset is None:
-            return len(self)
-        return len(self.requests[subset])
+    def length(self):
+        return len(self)
 
-    def is_persisted(self, subset=None, store=None):
-        if subset is None:
-            subset = list(self.requests.keys())
+    def is_persisted(self, store=None):
         if store is None:
             store = self.persist_store
 
-        is_persisted_list = [is_in_store(store, s) for s in subset]
-        if not is_persisted_list:
-            return False
-        return all(is_persisted_list)
+        return is_in_store(store, "base")
 
     def persist(self, store=None):
         if store is None:
             store = self.persist_store
-
-        for subset in self.requests:
-            self.requests[subset] = np.array(self.requests[subset])
-            requests_to_store(self.persist_store, subset, self.requests[subset])
+        requests_to_store(store, "base", self.requests)
+        self.requests = np.array(self.requests)
 
     def configure(self, requests):
         request = super().configure(requests)
@@ -94,9 +86,9 @@ class Dataset(Node):
             # 2. store it internally in self.requests
             recorded_request = copy.deepcopy(request)
             del recorded_request["self"]
-            if rself["subset"] not in self.requests:
-                self.requests[rself["subset"]] = []
-            self.requests[rself["subset"]].append(recorded_request)
+            if self.requests is None:
+                self.requests = []
+            self.requests.append(recorded_request)
 
             # 3. add remove_dependencies to request
             new_request["remove_dependencies"] = True
@@ -106,18 +98,10 @@ class Dataset(Node):
 
         slices = indexers_to_slices(rc["indexers"])
         if "index" in slices:
-            # index_request = np.array(self.requests[rself['subset']])[slices['index']].tolist()
-            if isinstance(
-                slices["index"], list
-            ):  # TODO: change `list` to iteratable types
-                index_request = [
-                    self.requests[rself["subset"]][i] for i in slices["index"]
-                ]
+            if isinstance(slices["index"], Iterable):
+                index_request = [self.requests[i] for i in slices["index"]]
             else:
-                index_request = self.requests[rself["subset"]][slices["index"]]
-            # if len(index_request)>1:
-            #     raise RuntimeError('Dataset cannot serve more than one request at a time')
-
+                index_request = self.requests[slices["index"]]
             new_request["clone_dependencies"] = index_request
         return new_request
 
@@ -131,8 +115,6 @@ class Dataset(Node):
                 "This is a request recording run. No data can be propagated. You should not call `foreal.compute` but only `foreal.core.configuration`"
             )
 
-        data = data[0]
-        # data = xr.concat(data,'index',coords='minimal',compat='override')
         if isinstance(data, xr.DataArray):
             data = data.expand_dims("index")
             index = request["self"]["indexers"]["index"]
@@ -140,14 +122,12 @@ class Dataset(Node):
                 start = request["self"]["indexers"]["index"]["start"]
                 stop = request["self"]["indexers"]["index"]["stop"]
                 index = np.arange(start, stop)
-            data = data.assign_coords({"index": np.array(index).astype(np.float)})
+            data = data.assign_coords({"index": np.array(index).astype(float)})
         elif isinstance(data, np.ndarray):
             data = np.expand_dims(data, axis=0)
 
         return data
 
-
-from multiprocessing import Manager
 
 import numpy as np
 from tqdm import tqdm
@@ -155,8 +135,6 @@ from tqdm import tqdm
 import foreal
 from foreal.convenience import dict_update
 from foreal.core.graph import NodeFailedException
-
-manager = Manager()
 
 
 class ForealDatasetHash:
@@ -166,7 +144,6 @@ class ForealDatasetHash:
         x_datasets,
         persister=None,
         transforms=None,
-        subset=None,
         request_base=None,
     ):
         """Wrapper to change a foreal dataset (accessed with requests) into a
@@ -205,15 +182,12 @@ class ForealDatasetHash:
         self.datasets = datasets
         self.x_datasets = x_datasets
         self.persister = persister
-        self.subset = subset
         self.request_base = request_base
 
-        self.indices = np.arange(datasets[0].length(subset)).tolist()
-        # self.indices = {k:k for k in np.arange(datasets[0].length(subset))}
+        self.indices = np.arange(len(datasets[0])).tolist()
 
-        # a shared dictionary to remember which data items failed to load
-        # these can then be removed with mask_invalid()
-        self.invalid_indices = manager.dict()
+        self.invalid_indices = {}
+        self.valid_indices = {}
 
         self.transforms = transforms
 
@@ -237,7 +211,6 @@ class ForealDatasetHash:
             dd,
             xd,
             persister=ps,
-            subset=datasets[0].subset,
             request_base=datasets[0].request_base,
         )
         joined.transforms = []
@@ -245,6 +218,8 @@ class ForealDatasetHash:
         joined.singleton = 0
 
         joined.indices = None
+        joined.invalid_indices = {}
+        joined.valid_indices = {}
         for d in datasets:
             #            joined.datasets += d.datasets
             #            joined.x_datasets += d.x_datasets
@@ -257,24 +232,48 @@ class ForealDatasetHash:
                 joined.indices = set(d.indices)
             else:
                 joined.indices = joined.indices & set(d.indices)
+
+            joined.invalid_indices.update(d.invalid_indices)
+            joined.valid_indices.update(d.valid_indices)
+
+        # remove all invalid indices from valid_indices
+        joined.valid_indices = {
+            key: value
+            for key, value in joined.valid_indices.items()
+            if key not in joined.invalid_indices
+        }
+
         joined.singleton = joined.singleton <= 1
         joined.indices = list(joined.indices)
         return joined
 
     @property
     def requests(self):
-        # FIXME: change hardcoded
-        return self.datasets[0].requests["all"][self.indices]
+        return self.datasets[0].requests[self.indices]
 
     def mask_invalid(self):
-        # to make it faster we work with a shallow copy of the multiprocessing dict
-        local_dict = self.invalid_indices.copy()
+        local_dict = self.invalid_indices
         self.indices = [x for x in self.indices if x not in local_dict]
+
+    def valid(self, idx):
+        if idx in self.valid_indices:
+            return True
+        if idx in self.invalid_indices:
+            return False
+
+        # If we get here the idx was never tested for validity
+        # so let's do it
+        result = self.__getitem__(idx, only_validity=True)
+        if isinstance(result, NodeFailedException):
+            return False
+        if isinstance(result, tuple):
+            return all([not isinstance(item, NodeFailedException) for item in result])
+        return True
 
     def __len__(self):
         return len(self.indices)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx, only_validity=False):
         singleton = self.singleton
 
         stream_select = np.arange(len(self.datasets))
@@ -291,25 +290,37 @@ class ForealDatasetHash:
         )
         out = []
         for stream in stream_select:
-            # TODO: check if dataset was persisted before
-            if True:
-                values = foreal.compute(self.x_datasets[stream], request)
-            else:
-                # a faster way to load the data skipping the configuration of the
-                # whole graph. It only works if it was persisted before
-                r = self.datasets[stream].configure([request])
-                if self.persister[stream] is not None:
-                    for rc in r["clone_dependencies"]:
-                        #                   is_valid = self.persister[stream].is_valid(rc)
-                        # print('isvalid',is_valid)
-                        rcp = self.persister[stream].configure([rc])
-                        if rcp["self"]["action"] == "load":
-                            values = self.persister[stream].forward(None, rcp)
-                        else:
-                            raise RuntimeError("we should not come here")
-
-            if isinstance(values, NodeFailedException):
-                self.invalid_indices[int(internal_idx)] = True
+            # check if dataset was persisted before
+            values = None
+            persisted = True
+            r = self.datasets[stream].configure([request])
+            if self.persister[stream] is not None:
+                for rc in r["clone_dependencies"]:
+                    item_valid = self.persister[stream].is_valid(rc)
+                    if item_valid is None:
+                        persisted = False
+                    elif not item_valid:
+                        values = NodeFailedException("Item is not valid")
+                    else:
+                        values = "dummy"
+            if not only_validity or values is None:
+                if not persisted:
+                    values = foreal.compute(self.x_datasets[stream], request)
+                else:
+                    # a faster way to load the data skipping the configuration of the
+                    # whole graph. It only works if it was persisted before
+                    r = self.datasets[stream].configure([request])
+                    if self.persister[stream] is not None:
+                        values = []
+                        for rc in r["clone_dependencies"]:
+                            rcp = self.persister[stream].configure([rc])
+                            if rcp["self"]["action"] == "load":
+                                values += [self.persister[stream].forward(None, rcp)]
+                            else:
+                                raise RuntimeError("we should not come here")
+                        if len(values) == 1:
+                            values = values[0]
+                        values = self.datasets[stream].forward(values, r)
 
             if isinstance(self.transforms, list):
                 if self.transforms[stream] is not None:
@@ -323,6 +334,63 @@ class ForealDatasetHash:
             return out[0]
 
         return tuple(out)
+
+    def check_validity(self, batch_size=1, num_workers=0):
+        temp_transforms = self.transforms
+        self.transforms = None
+        # import torch
+
+        this = self
+
+        class TmpClass:
+            def __getitem__(self, idx):
+                return (idx, this.valid(idx))
+
+            def __len__(self):
+                return len(this)
+
+        # number_of_batches = int(np.ceil(len(self.indices) / batch_size))
+        # indices = [
+        #     self.indices[i : i + batch_size]
+        #     for i in range(0, len(self.indices), batch_size)
+        # ]
+
+        # for batch_idx in tqdm(range(number_of_batches)):
+        #     batch_indices = indices[batch_idx]
+
+        #     with concurrent.futures.ThreadPoolExecutor(
+        #         max_workers=num_workers
+        #     ) as executor:
+        #         futures_to_id_map = {}
+        #         for idx in batch_indices:
+        #             future = executor.submit(self.valid, idx)
+        #             futures_to_id_map[future] = idx
+        #         for future in concurrent.futures.as_completed(futures_to_id_map):
+        #             idx = futures_to_id_map[future]
+        #             is_valid = future.result()
+        #             if is_valid:
+        #                 self.valid_indices[idx] = True
+        #             else:
+        #                 self.invalid_indices[idx] = True
+
+        import torch
+
+        for batch in torch.utils.data.dataloader.DataLoader(
+                TmpClass(),
+                batch_size=batch_size,
+                num_workers=num_workers,
+                drop_last=False,
+                shuffle=False,
+                collate_fn=lambda x: x,
+                # multiprocessing_context=mp.get_context('fork')
+            ) :
+            for idx, valid in batch:
+                if valid:
+                    self.valid_indices[idx] = True
+                else:
+                    self.invalid_indices[idx] = True
+
+        self.transforms = temp_transforms
 
     def preload(self, batch_size=1, num_workers=0, use_torch=True, client=None):
         if use_torch:
@@ -512,7 +580,7 @@ class ForealDataset:
         fd.transforms = [transform]
         fd._requests = requests
         if requests is None:
-            fd._requests = dataset.requests[dataset.config["subset"]]
+            fd._requests = dataset.requests
         elif isinstance(requests, str):
             fd._requests = dataset.requests[requests]
 

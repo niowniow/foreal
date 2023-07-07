@@ -57,7 +57,7 @@ def set_for_keys(my_dict, key_arr, val):
 def to_formatted_json(df, sep="."):
     def process_row(row):
         parsed_row = {}
-        for idx, val in row.iteritems():
+        for idx, val in row.items():
             if isinstance(val, (np.ndarray, list)) or pd.notnull(val):
                 keys = idx.split(sep)
                 parsed_row = set_for_keys(parsed_row, keys, val)
@@ -497,13 +497,36 @@ class BoundingBoxAnnotation(Node):
 
         norm_schema = normalize_keys(ms)
         for key in norm_schema:
-            m = self_requests_subset[key].eq(request_subset[key].values)
+            # m = self_requests_subset[key].eq(request_subset[key].values)
+
+            a = self_requests_subset[key].apply(
+                lambda x: [x] if not isinstance(x, list) else x
+            )
+            b = request_subset[key].apply(
+                lambda x: [x] if not isinstance(x, list) else x
+            )
+
+            m = np.array(
+                [any([aa in bb for aa in aa_list]) for aa_list, bb in zip(a, b)]
+            )
+
+            # m = np.zeros((len(self_requests_subset),))
+            # for idx, row in self_requests_subset.iterrows():
+            #     a = row[key]
+            #     b = request_subset[key].iloc[idx]
+            #     if not isinstance(a, list):
+            #         a = [a]
+            #     if not isinstance(b, list):
+            #         b = [b]
+
+            #     m[idx] = any([aa in b for aa in a])
+
             if mask is None:
                 mask = m
             else:
                 mask = np.logical_and(mask, m)
 
-        subo = overlap[mask.values]
+        subo = overlap[mask]
 
         out = [[] for _ in range(len(request))]
         for i in range(len(subo)):

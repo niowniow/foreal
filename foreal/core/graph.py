@@ -173,8 +173,11 @@ class Node(object):
                         new_request["self"],
                         request["config"]["keys"][self.dask_key_name],
                     )
-
-                # TODO: It should be save to remove these keys from the new_request!?
+                    
+                    # TODO: It should be save to remove these keys from the new_request!?
+                    del new_request['config']['keys'][self.dask_key_name]
+                    
+                # TODO: should we prefer the following way of removing the config?
                 # new_request['config']['keys'] = {k:v for k,v in request["config"]["keys"].items() if k != self.dask_key_name}
 
                 # # add to new_request
