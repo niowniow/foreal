@@ -383,7 +383,7 @@ class SeismicGPP(Node):
             da = da.assign_coords({"network": [network]})
             da = da.expand_dims("location", 0)
             da = da.assign_coords({"location": [location]})
-            da = da.astype(np.float, casting="safe")
+            da = da.astype(float, casting="safe")
             x = da
 
             # TODO: same check for obspy

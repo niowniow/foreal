@@ -1356,11 +1356,25 @@ class HashPersister(Node):
         return request_hash
 
     def is_valid(self, request):
-        request_hash = self.get_hash(request)
-        # ideally the answer should be yes, no, don't know...
-        # currently it's only yes and no
+        """Checks if persisted object for `request`
+        exists and is valid (i.e. is not of type NodeFailedException).
 
-        return request_hash in self.store
+        Args:
+            request (dict): The request that should be checked
+
+        Returns:
+            boolean or None: Returns false if the persisted item is of type NodeFailedException
+                             Returns None if the request has not been persisted yet.
+        """
+        request_hash = self.get_hash(request)
+
+        if "fail/" + request_hash in self.store:
+            return False
+
+        if request_hash in self.store:
+            return True
+
+        return None
 
     def configure(self, requests=None):
         # merging requests here
@@ -1704,6 +1718,7 @@ class ChunkPersister(Node):
     def forward(self, data, request):
         if not isinstance(data, list):
             data = [data]
+
         # print(len(data))
         def unpack_list(inputlist):
             new_list = []

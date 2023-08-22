@@ -479,9 +479,9 @@ class LTTBDownsampling(Node):
             p_minus_c_value = prev_value - current_value
             p_minus_c_index = prev_index - current_index
 
-            P_i, P_v = prev_index.astype(np.float), prev_value
-            C_i, C_v = current_index.astype(np.float), current_value
-            N_i, N_v = next_index.astype(np.float), next_value
+            P_i, P_v = prev_index.astype(float), prev_value
+            C_i, C_v = current_index.astype(float), current_value
+            N_i, N_v = next_index.astype(float), next_value
 
             # print('P',P_i,P_v)
             # print('C',C_i,C_v)
