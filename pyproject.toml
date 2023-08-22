@@ -7,7 +7,7 @@ license = "Apache License 2.0"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-pyyaml = "^5.4.1"
+pyyaml = "6"
 appdirs = "^1.4.4"
 dask = "^2023.2.1"
 zarr = {git = "https://github.com/shikharsg/zarr", rev = "chunk_cache"}

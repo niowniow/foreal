@@ -131,7 +131,7 @@ class Dataset(Node):
                 "This is a request recording run. No data can be propagated. You should not call `foreal.compute` but only `foreal.core.configuration`"
             )
 
-        data = data[0]
+        # data = data[0]
         # data = xr.concat(data,'index',coords='minimal',compat='override')
         if isinstance(data, xr.DataArray):
             data = data.expand_dims("index")
