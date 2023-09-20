@@ -62,6 +62,20 @@ class use_delayed:
     def __exit__(self, type, value, traceback):
         set_setting("use_delayed", self.prev)
 
+# the same as use_delayed, but more descriptive
+class create_taskgraph:
+    def __init__(self):
+        self.prev = False
+        pass
+
+    def __enter__(self):
+        if setting_exists("use_delayed"):
+            self.prev = get_setting("use_delayed")
+        set_setting("use_delayed", True)
+
+    def __exit__(self, type, value, traceback):
+        set_setting("use_delayed", self.prev)
+
 
 class use_probe:
     def __init__(self, request):
