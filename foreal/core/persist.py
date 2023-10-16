@@ -1701,7 +1701,7 @@ class ChunkPersister(Node):
                     "config": {
                         "keys": {
                             self.dask_key_name
-                            + "_hashpersister": {"force_update": True}
+                            + "_hashpersister": {"force_update": rs.get("force_update",False)}
                         }
                     }
                 },
