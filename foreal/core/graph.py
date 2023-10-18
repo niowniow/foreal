@@ -691,7 +691,11 @@ def configuration(
                         if d not in work and (d not in remove or not remove[d]):
                             new_work[d] = True
             dsk_k = list(dsk_dict[k])
+            # loop though all input keys of this node `k` and discard all inputs that have been removed
             if k_in_keys is not None:
+                if not isinstance(k_in_keys,list):
+                    k_in_keys = [k_in_keys]
+                k_in_keys = [k_in_keys_k for k_in_keys_k in k_in_keys if (not remove.get(k_in_keys_k,False))]
                 if len(k_in_keys) == 1:
                     k_in_keys = k_in_keys[0]
                 dsk_k[1] = k_in_keys
@@ -902,12 +906,21 @@ def optimize(delayed, keys=None, dask_optimize=False):
 
             # rename k
             node_token = ""
-            if hasattr(dsk_dict[k][0], "__self__"):
-                node_token = dsk_dict[k][0].__self__
+
+            # FIXME: for which cases do we need the following two lines? 
+            # it breaks the optimization significantly for chunkpersister, because it initializes
+            # a new hashpersister instance for each parallel branch dynamically
+            # What is the purpose? Do we want to account for internal configurations? Maybe find a different solution
+            # if hasattr(dsk_dict[k][0], "__self__"):
+            #     node_token = dsk_dict[k][0].__self__
 
             input_token = list(dsk_dict[k][1:])
+
+
+            token = tokenize([node_token, input_token])
+
             # start = time.time()
-            new_k = base_name(k) + KEY_SEP + tokenize([node_token, input_token])
+            new_k = base_name(k) + KEY_SEP + token
             # duration = time.time() - start
             # debug[base_name(k)] = debug.get(base_name(k),0) + duration
 
